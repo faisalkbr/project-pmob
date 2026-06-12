@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/product_model.dart';
 import '../../viewmodels/cart_viewmodel.dart';
+import '../../viewmodels/transaction_viewmodel.dart';
 import '../../widgets/detail_widgets.dart';
 import '../../widgets/review_section.dart';
 import '../cart_screen.dart';
@@ -65,6 +66,29 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
     } finally {
       if (mounted) setState(() => _addingToCart = false);
     }
+  }
+
+  void _onAccessContent() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Kamu sudah memiliki akses ke ${widget.product.title}',
+                style: GoogleFonts.manrope(fontSize: 13),
+                maxLines: 2,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF16A34A),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   static const _toc = [
@@ -179,14 +203,19 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
               ),
             ),
           ),
-          DetailStickyFooter(
-            originalPrice: widget.product.formattedOriginalPrice,
-            price: widget.product.formattedPriceFull,
-            ctaLabel: _addingToCart ? 'Menambahkan...' : 'Beli & Download',
-            ctaIcon: Icons.download_rounded,
-            ctaGradient: const [DetailColors.purple, Color(0xFF6B0075)],
-            shadowColor: DetailColors.purple,
-            onTap: _addingToCart ? null : _addToCart,
+          Selector<TransactionViewModel, bool>(
+            selector: (_, vm) => vm.hasPurchased(widget.product.id),
+            builder: (context, isPurchased, _) => DetailStickyFooter(
+              originalPrice: widget.product.formattedOriginalPrice,
+              price: widget.product.formattedPriceFull,
+              ctaLabel: _addingToCart ? 'Menambahkan...' : 'Beli & Download',
+              ctaIcon: Icons.download_rounded,
+              ctaGradient: const [DetailColors.purple, Color(0xFF6B0075)],
+              shadowColor: DetailColors.purple,
+              onTap: _addingToCart ? null : _addToCart,
+              isPurchased: isPurchased,
+              onAccessContent: isPurchased ? _onAccessContent : null,
+            ),
           ),
         ],
       ),

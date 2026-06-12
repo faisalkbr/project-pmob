@@ -857,6 +857,8 @@ class DetailStickyFooter extends StatelessWidget {
     this.onTap,
     this.originalPrice,
     this.shadowColor,
+    this.isPurchased = false,
+    this.onAccessContent,
   });
 
   final String price;
@@ -867,13 +869,21 @@ class DetailStickyFooter extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? shadowColor;
 
+  /// Jika true, footer menampilkan state "Sudah Dibeli" dengan tombol
+  /// "Akses Konten" hijau dan tanda lunas.
+  final bool isPurchased;
+  final VoidCallback? onAccessContent;
+
+  static const _green = Color(0xFF16A34A);
+  static const _greenFaint = Color(0x1A16A34A);
+
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-      decoration: BoxDecoration(
-        color: const Color(0xF2FBFAFF), // bg dengan opacity ~95%
-        border: const Border(top: BorderSide(color: DetailColors.border)),
+      decoration: const BoxDecoration(
+        color: Color(0xF2FBFAFF),
+        border: Border(top: BorderSide(color: DetailColors.border)),
       ),
       child: SafeArea(
         top: false,
@@ -884,21 +894,42 @@ class DetailStickyFooter extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (originalPrice != null)
-                    Text(
-                      originalPrice!,
-                      style: GoogleFonts.manrope(
-                        fontSize: 11,
-                        color: DetailColors.muted,
-                        decoration: TextDecoration.lineThrough,
+                  if (isPurchased) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _greenFaint,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'SUDAH DIBELI',
+                        style: GoogleFonts.manrope(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: _green,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 4),
+                  ] else ...[
+                    if (originalPrice != null)
+                      Text(
+                        originalPrice!,
+                        style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          color: DetailColors.muted,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                  ],
                   Text(
                     price,
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: DetailColors.navy,
+                      color: isPurchased ? _green : DetailColors.navy,
                     ),
                   ),
                 ],
@@ -906,51 +937,134 @@ class DetailStickyFooter extends StatelessWidget {
             ),
             Expanded(
               flex: 2,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: ctaGradient,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (shadowColor ?? ctaGradient.first)
-                          .withOpacity(0.3),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
+              child: isPurchased
+                  ? _AccessContentButton(onTap: onAccessContent)
+                  : _BuyButton(
+                      label: ctaLabel,
+                      icon: ctaIcon,
+                      gradient: ctaGradient,
+                      shadowColor: shadowColor,
+                      onTap: onTap,
                     ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: onTap,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(ctaIcon, size: 16, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Text(
-                            ctaLabel,
-                            style: GoogleFonts.manrope(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BuyButton extends StatelessWidget {
+  const _BuyButton({
+    required this.label,
+    required this.icon,
+    required this.gradient,
+    required this.onTap,
+    this.shadowColor,
+  });
+
+  final String label;
+  final IconData icon;
+  final List<Color> gradient;
+  final VoidCallback? onTap;
+  final Color? shadowColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: gradient,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (shadowColor ?? gradient.first).withValues(alpha: 0.3),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 16, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccessContentButton extends StatelessWidget {
+  const _AccessContentButton({this.onTap});
+  final VoidCallback? onTap;
+
+  static const _green = Color(0xFF16A34A);
+  static const _greenLight = Color(0xFF22C55E);
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_green, _greenLight],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _green.withValues(alpha: 0.3),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock_open_rounded,
+                    size: 16, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                  'Akses Konten',
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

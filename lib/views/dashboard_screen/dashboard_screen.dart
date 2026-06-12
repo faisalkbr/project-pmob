@@ -13,6 +13,7 @@ import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/competition_viewmodel.dart';
 import '../../viewmodels/dashboard_viewmodel.dart';
 import '../../viewmodels/product_viewmodel.dart';
+import '../../viewmodels/transaction_viewmodel.dart';
 import '../../widgets/cart_icon_button.dart';
 import '../../widgets/competition_image_preview.dart' as preview;
 import '../../widgets/product_grid_card.dart';
@@ -21,6 +22,7 @@ import '../main_navigation.dart';
 import '../product_screen/detail_bootcamp_screen.dart';
 import '../product_screen/detail_kelas_screen.dart';
 import '../product_screen/detail_modul_screen.dart';
+import '../transaction_screen/transaction_history_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -47,6 +49,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // datanya sudah siap.
       context.read<ProductViewModel>().init();
       context.read<CompetitionViewModel>().init();
+      context.read<TransactionViewModel>().loadPurchasedIds();
     });
   }
 
@@ -59,6 +62,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _openCart() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const CartScreen()),
+    );
+  }
+
+  void _openTransactionHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+          builder: (_) => const TransactionHistoryScreen()),
     );
   }
 
@@ -152,6 +162,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
+            const SizedBox(width: 8),
+            _HistoryButton(onTap: _openTransactionHistory),
             const SizedBox(width: 8),
             CartIconButton(onTap: _openCart),
             const SizedBox(width: 8),
@@ -571,6 +583,29 @@ class _LogoutButton extends StatelessWidget {
           height: 40,
           child: Icon(Icons.logout_rounded,
               size: 18, color: Color(0xFFE53935)),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryButton extends StatelessWidget {
+  const _HistoryButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0x14001261),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: const SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(Icons.receipt_long_rounded,
+              size: 18, color: Color(0xFF001261)),
         ),
       ),
     );
