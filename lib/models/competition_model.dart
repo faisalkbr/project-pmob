@@ -2,6 +2,8 @@
 // FILE: lib/models/competition_model.dart
 // ============================================
 
+import '../config/api_config.dart';
+
 /// Model utama untuk entity Lomba dari Laravel API.
 class CompetitionModel {
   final int id;
@@ -57,8 +59,10 @@ class CompetitionModel {
       registrationFee: parseInt(json['registration_fee'] ?? json['biaya']),
       registrationFeeLabel: json['registration_fee_label']?.toString(),
       prize: parseInt(json['prize'] ?? json['hadiah']),
-      imageUrl:
-          (json['image_url'] ?? json['image'] ?? json['gambar'] ?? '').toString(),
+      // Resolusi terhadap host backend saat ini agar gambar tetap muncul
+      // walau DB menyimpan host absolut yang basi / saat pindah platform.
+      imageUrl: ApiConfig.resolveImageUrl(
+          (json['image_url'] ?? json['image'] ?? json['gambar'] ?? '').toString()),
       registrationLink: (json['link_pendaftaran'] ??
               json['registration_link'] ??
               json['link'] ??
