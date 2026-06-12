@@ -32,6 +32,9 @@ dependencies:
   # Open external URL (link pendaftaran lomba, dll)
   url_launcher: ^6.2.5
 
+  # Pilih gambar bukti pembayaran (galeri/kamera, cross-platform termasuk web)
+  image_picker: ^1.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -41,4 +44,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/markup.png
-    - assets/images/google.png # <-- Tambahkan baris ini
+    - assets/images/google.png
+    - assets/images/qris.png

@@ -6,8 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../models/transaction_model.dart';
 import '../viewmodels/cart_viewmodel.dart';
+import '../viewmodels/transaction_viewmodel.dart';
 import '../widgets/cart_item_card.dart';
+import '../widgets/payment_method_sheet.dart';
+import '../widgets/qris_payment_sheet.dart';
+import 'transaction_screen/transaction_detail_screen.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -31,6 +36,126 @@ class _CartScreenState extends State<CartScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CartViewModel>().loadCart();
     });
+  }
+
+  Future<void> _checkout(CartViewModel cartVm) async {
+    final txVm = context.read<TransactionViewModel>();
+    final method = await showPaymentMethodSheet(
+      context,
+      totalAmount: cartVm.subtotal,
+    );
+    if (method == null || !mounted) return;
+
+    // QRIS punya alur khusus: tampilkan QR dulu, tunggu konfirmasi user,
+    // baru lanjut hit API checkout.
+    if (method == PaymentMethod.qris) {
+      final paid = await showQrisPaymentSheet(
+        context,
+        totalAmount: cartVm.subtotal,
+        merchantName: 'Mark-Up Indonesia',
+      );
+      if (paid != true || !mounted) return;
+    }
+
+    // Tampilkan loading dialog selama proses checkout.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: _purple),
+      ),
+    );
+
+    final trx = await txVm.checkout(method);
+
+    if (!mounted) return;
+    Navigator.of(context).pop(); // tutup loading
+
+    if (trx == null) {
+      _showError(txVm.checkoutError ?? 'Checkout gagal, coba lagi.');
+      return;
+    }
+
+    // Cart sudah dikosongkan di server — sinkronkan state lokal.
+    await cartVm.refresh();
+    if (!mounted) return;
+
+    await _showSuccessDialog(trx);
+    if (!mounted) return;
+
+    // Replace cart screen dengan halaman detail transaksi.
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => TransactionDetailScreen(transactionId: trx.id),
+      ),
+    );
+  }
+
+  Future<void> _showSuccessDialog(TransactionModel trx) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0x14F59E0B),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.hourglass_top_rounded,
+                  color: Color(0xFFF59E0B), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Pesanan Dibuat',
+                style: GoogleFonts.spaceGrotesk(
+                    fontWeight: FontWeight.w700, color: _navy),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Transaksi ${trx.code} sebesar ${trx.formattedTotal} dibuat dan '
+          'menunggu pembayaran. Unggah bukti bayar di halaman detail, lalu '
+          'admin akan memverifikasi sebelum produk terbuka.',
+          style: GoogleFonts.manrope(fontSize: 13, color: _muted, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              'Lihat Detail',
+              style: GoogleFonts.manrope(
+                  color: _navy, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(message, style: GoogleFonts.manrope(fontSize: 13)),
+            ),
+          ],
+        ),
+        backgroundColor: _red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   Future<void> _confirmClear(CartViewModel vm) async {
@@ -78,7 +203,10 @@ class _CartScreenState extends State<CartScreen> {
                 _buildHeader(vm),
                 Expanded(child: _buildBody(vm)),
                 if (!vm.isEmpty && !vm.isLoading)
-                  _buildCheckoutBar(vm),
+                  Consumer<TransactionViewModel>(
+                    builder: (_, txVm, __) =>
+                        _buildCheckoutBar(vm, isProcessing: txVm.isCheckingOut),
+                  ),
               ],
             );
           },
@@ -173,7 +301,7 @@ class _CartScreenState extends State<CartScreen> {
 
   // ─── Checkout footer ───────────────────────────────────────────────────────
 
-  Widget _buildCheckoutBar(CartViewModel vm) {
+  Widget _buildCheckoutBar(CartViewModel vm, {required bool isProcessing}) {
     return Container(
       padding: EdgeInsets.fromLTRB(
           20, 14, 20, MediaQuery.of(context).padding.bottom + 14),
@@ -232,31 +360,28 @@ class _CartScreenState extends State<CartScreen> {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Checkout segera hadir!',
-                        style: GoogleFonts.manrope(fontSize: 13),
-                      ),
-                      backgroundColor: _navy,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  );
-                },
+                onTap: isProcessing ? null : () => _checkout(vm),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 28, vertical: 14),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.shopping_cart_checkout_rounded,
-                          size: 16, color: Colors.white),
+                      if (isProcessing)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      else
+                        const Icon(Icons.shopping_cart_checkout_rounded,
+                            size: 16, color: Colors.white),
                       const SizedBox(width: 8),
                       Text(
-                        'Checkout',
+                        isProcessing ? 'Memproses...' : 'Checkout',
                         style: GoogleFonts.manrope(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
