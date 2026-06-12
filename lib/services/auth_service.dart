@@ -8,7 +8,7 @@ import 'api_service.dart';
 class AuthService {
   // ================= REGISTER =================
   Future<Map<String, dynamic>> register(
-      String name, String email, String password, String role) async {
+      String name, String email, String password, String passwordConfirmation) async {
     try {
       // Dio otomatis menggabungkan ApiConfig.baseUrl dengan '/register'
       final response = await ApiService.dio.post(
@@ -17,25 +17,40 @@ class AuthService {
           'name': name,
           'email': email,
           'password': password,
-          'role': role,
+          // Laravel memvalidasi 'confirmed' → butuh field password_confirmation
+          'password_confirmation': passwordConfirmation,
         },
       );
 
-      // Status 201 artinya Created (Berhasil Dibuat)
+      // Status 201 artinya Created. Backend langsung mengirim token (auto-login).
       if (response.statusCode == 201 || response.statusCode == 200) {
-        return {'success': true, 'message': 'Registrasi berhasil'};
+        return {
+          'success': true,
+          'token': response.data['access_token'],
+          'user': response.data['user'],
+        };
       }
       return {'success': false, 'message': 'Terjadi kesalahan tidak terduga'};
     } on DioException catch (e) {
-      // Menangkap error validasi dari Laravel (misal 422 Unprocessable Entity jika email sudah ada)
-      String errorMessage = 'Gagal mendaftar';
-      if (e.response != null && e.response?.data != null) {
-        errorMessage = e.response?.data['message'] ?? errorMessage;
-      }
-      return {'success': false, 'message': errorMessage};
+      return {'success': false, 'message': _extractError(e, 'Gagal mendaftar')};
     } catch (e) {
       return {'success': false, 'message': 'Tidak dapat terhubung ke server'};
     }
+  }
+
+  // Ambil pesan error dari respons Laravel. Untuk 422, ambil pesan validasi
+  // pertama dari 'errors' bila ada, jika tidak pakai 'message'.
+  String _extractError(DioException e, String fallback) {
+    final data = e.response?.data;
+    if (data is Map) {
+      final errors = data['errors'];
+      if (errors is Map && errors.isNotEmpty) {
+        final first = errors.values.first;
+        if (first is List && first.isNotEmpty) return first.first.toString();
+      }
+      if (data['message'] != null) return data['message'].toString();
+    }
+    return fallback;
   }
 
   // ================= LOGIN =================
@@ -58,11 +73,7 @@ class AuthService {
       }
       return {'success': false, 'message': 'Login gagal'};
     } on DioException catch (e) {
-      String errorMessage = 'Email atau password salah';
-      if (e.response != null && e.response?.data != null) {
-        errorMessage = e.response?.data['message'] ?? errorMessage;
-      }
-      return {'success': false, 'message': errorMessage};
+      return {'success': false, 'message': _extractError(e, 'Email atau password salah')};
     } catch (e) {
       return {'success': false, 'message': 'Terjadi kesalahan jaringan'};
     }

@@ -27,14 +27,7 @@ class AuthViewModel extends ChangeNotifier {
     _isLoading = false;
 
     if (result['success'] == true) {
-      // 2. Simpan token ke HP melalui StorageService buatan tim Anda
-      await StorageService.saveToken(result['token']);
-
-      // 3. Simpan nama dan email ke HP
-      // Mengambil nama dari respons JSON Laravel, jika kosong pakai default
-      String name = result['user']?['name'] ?? 'User Mark-Up';
-      await StorageService.saveUserInfo(name, email);
-
+      await _saveSession(result, fallbackEmail: email);
       notifyListeners();
       return true;
     } else {
@@ -45,16 +38,20 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   // ================= FUNGSI REGISTER (SUDAH KONEK API) =================
-  Future<bool> register(String name, String email, String password) async {
+  Future<bool> register(
+      String name, String email, String password, String passwordConfirmation) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    var result = await _authService.register(name, email, password, 'student');
+    var result =
+        await _authService.register(name, email, password, passwordConfirmation);
 
     _isLoading = false;
 
     if (result['success'] == true) {
+      // Backend mengirim token saat register → langsung simpan sesi (auto-login)
+      await _saveSession(result, fallbackEmail: email);
       notifyListeners();
       return true;
     } else {
@@ -62,6 +59,17 @@ class AuthViewModel extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  // Simpan token + info user dari respons login/register ke storage lokal.
+  Future<void> _saveSession(Map<String, dynamic> result,
+      {required String fallbackEmail}) async {
+    await StorageService.saveToken(result['token']);
+
+    final user = result['user'];
+    final name = user?['name'] ?? 'User Mark-Up';
+    final email = user?['email'] ?? fallbackEmail;
+    await StorageService.saveUserInfo(name, email);
   }
 
   // ================= FUNGSI LOGOUT (SUDAH KONEK API) =================

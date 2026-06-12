@@ -28,7 +28,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    // Password tidak di-trim: spasi adalah bagian sah dari kredensial.
+    final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

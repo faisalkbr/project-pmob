@@ -47,8 +47,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _handleRegister() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    final confirmPassword = _confirmPasswordController.text.trim();
+    // Password tidak di-trim: spasi adalah bagian sah dari kredensial.
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
 
     // 1. Validasi Kosong
     if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
@@ -62,9 +63,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    // 3. Validasi Panjang Password
-    if (password.length < 6) {
-      _showSnackBar('Password minimal 6 karakter');
+    // 3. Validasi Panjang Password (sama dengan aturan backend: min 8)
+    if (password.length < 8) {
+      _showSnackBar('Password minimal 8 karakter');
       return;
     }
 
@@ -81,8 +82,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     final authVM = context.read<AuthViewModel>();
-    // Memanggil register TANPA university
-    final success = await authVM.register(name, email, password);
+    final success = await authVM.register(name, email, password, confirmPassword);
 
     if (!mounted) return;
 
