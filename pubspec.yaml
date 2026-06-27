@@ -40,6 +40,21 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.1
 
+  # Generate ikon launcher (Android + iOS) dari satu sumber gambar.
+  # Jalankan: dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.1
+
+# Konfigurasi ikon launcher Mark-Up (simbol M, latar putih).
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  # Adaptive icon Android 8+: latar putih + foreground transparan (zona aman).
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  # iOS tidak mendukung transparansi — ratakan ke latar putih.
+  remove_alpha_ios: true
+
 flutter:
   uses-material-design: true
   assets:
