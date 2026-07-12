@@ -23,6 +23,12 @@ dependencies:
   # Local Storage
   shared_preferences: ^2.2.3
 
+  # Secure storage untuk token auth (Keychain/Keystore, terenkripsi)
+  flutter_secure_storage: ^9.2.2
+
+  # Cache gambar jaringan (disk + memory) — hemat kuota & anti flicker
+  cached_network_image: ^3.4.1
+
   # Google Fonts
   google_fonts: ^6.1.0
 
@@ -34,6 +40,7 @@ dependencies:
 
   # Pilih gambar bukti pembayaran (galeri/kamera, cross-platform termasuk web)
   image_picker: ^1.1.2
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:
