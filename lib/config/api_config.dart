@@ -5,45 +5,77 @@
 import 'package:flutter/foundation.dart';
 
 class ApiConfig {
-  // Host backend dipilih otomatis sesuai platform tempat app dijalankan:
-  // - Web / desktop (Windows, dll): backend di mesin yang sama  -> localhost
-  // - Emulator Android: 10.0.2.2 adalah alias localhost host     -> 10.0.2.2
-  // - Device fisik: WAJIB pakai IP LAN laptop (lihat _lanHost),
-  //   karena localhost/10.0.2.2 menunjuk ke HP itu sendiri.
-  //
-  // IP LAN laptop saat ini (cek `ipconfig`, alamat Wi-Fi): 192.168.1.15
+  // Host backend dipilih otomatis sesuai platform tempat app dijalankan.
+  // Untuk Android, host bisa di-override saat run TANPA edit file ini:
+  //   --dart-define=API_HOST=127.0.0.1    → HP fisik via USB + `adb reverse`
+  //   --dart-define=API_HOST=192.168.x.x  → HP fisik satu Wi-Fi (IP LAN laptop)
+  // Default 10.0.2.2 = alias localhost host untuk emulator Android.
   static const String _port = '8000';
 
+  static const String _androidHost =
+      String.fromEnvironment('API_HOST', defaultValue: '10.0.2.2');
+
+  // Domain backend produksi yang sudah di-deploy di cPanel (lengkap + /api).
+  // Dipakai OTOMATIS pada build rilis (kReleaseMode) sehingga tim cukup
+  // menjalankan `flutter build apk --release` tanpa perlu mengingat string
+  // --dart-define yang panjang. Tetap bisa di-override (lihat _prodBaseUrl).
+  static const String _defaultProdBaseUrl = 'https://markup.si-project.my.id/api';
+
+  // Override eksplisit URL backend (lengkap dengan skema + /api). Saat di-set,
+  // nilai ini MENGALAHKAN baik default produksi maupun logika per-platform —
+  // berguna untuk menunjuk ke staging atau server dev dari build apa pun:
+  //   flutter build apk --release \
+  //     --dart-define=API_BASE_URL=https://staging.markup.test/api
+  static const String _prodBaseUrl =
+      String.fromEnvironment('API_BASE_URL', defaultValue: '');
+
   static String get baseUrl {
+    // 1. Override eksplisit via --dart-define selalu menang.
+    if (_prodBaseUrl.isNotEmpty) return _prodBaseUrl;
+    // 2. Build rilis -> domain produksi cPanel.
+    if (kReleaseMode) return _defaultProdBaseUrl;
+    // 3. Debug/profile -> resolusi per-platform untuk development lokal.
     if (kIsWeb) return 'http://localhost:$_port/api';
     if (defaultTargetPlatform == TargetPlatform.android) {
-      // Emulator Android. Untuk HP fisik: 'http://192.168.1.15:$_port/api'
-      return 'http://10.0.2.2:$_port/api';
+      return 'http://$_androidHost:$_port/api';
     }
     // iOS simulator, Windows, macOS, Linux desktop
     return 'http://localhost:$_port/api';
   }
 
+  // Web client ID dari Google Cloud Console (tipe "Web application"), dipakai
+  // sebagai serverClientId saat Google Sign-In agar ID token punya audience
+  // yang sama dengan yang diverifikasi backend (config services.google.client_id).
+  // Override saat run/build dengan --dart-define=GOOGLE_SERVER_CLIENT_ID=...
+  static const String googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+    defaultValue: '531667844552-vnp8k5pimlla0d61pmqqvucinp9emhk9.apps.googleusercontent.com',
+  );
+
   // Endpoints (akan dipakai di minggu-minggu berikutnya)
   static const String login = '/login';
   static const String register = '/register';
+  static const String googleAuth = '/auth/google';
   static const String logout = '/logout';
   static const String profile = '/profile';
   static const String packages = '/packages';
   static const String modules = '/modules';
   static const String videos = '/videos';
   static const String mentors = '/mentors';
-  static const String bookings = '/bookings';
   static const String competitions = '/competitions';
   // Endpoint baru untuk halaman Produk (Modul, Kelas, Bootcamp)
   static const String products = '/products';
   static const String cart = '/cart';
   static const String transactions = '/transactions';
   static const String myProducts = '/my-products';
+  static const String myLearning = '/my-learning';
 
+  static String productContent(int productId) => '/products/$productId/content';
   static String productReviews(int productId) => '/products/$productId/reviews';
   static String reviewById(int reviewId) => '/reviews/$reviewId';
   static String transactionById(int id) => '/transactions/$id';
+  static String transactionPay(int id) => '/transactions/$id/pay';
+  static String transactionSyncStatus(int id) => '/transactions/$id/sync-status';
 
   // ===== Resolusi URL gambar (lintas platform) =====
 
