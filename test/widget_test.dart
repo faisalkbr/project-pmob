@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:markup_mobile/app.dart';
 import 'package:markup_mobile/viewmodels/auth_viewmodel.dart';
 import 'package:markup_mobile/viewmodels/dashboard_viewmodel.dart';
-import 'package:markup_mobile/viewmodels/course_provider.dart';
 
 void main() {
   testWidgets('App should render without crashing', (WidgetTester tester) async {
@@ -16,7 +15,6 @@ void main() {
         providers: [
           ChangeNotifierProvider(create: (_) => AuthViewModel()),
           ChangeNotifierProvider(create: (_) => DashboardViewModel()),
-          ChangeNotifierProvider(create: (_) => CourseProvider()),
         ],
         child: const MarkUpApp(),
       ),
