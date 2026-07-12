@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
 import '../models/product_model.dart';
+import '../models/product_content_model.dart';
 import 'api_service.dart';
 
 class ProductService {
@@ -53,6 +54,56 @@ class ProductService {
       if (kDebugMode) {
         debugPrint('[ProductService] DioException: ${e.type} '
             '${e.response?.statusCode} ${e.response?.data}');
+      }
+      throw Exception(_readableError(e));
+    }
+  }
+
+  /// Ambil detail lengkap satu produk (deskripsi, includes, total_pages,
+  /// chapters, author, dst.) dari `GET /products/{id}`.
+  Future<Map<String, dynamic>> fetchProductDetail(int id) async {
+    try {
+      final response = await ApiService.dio.get('${ApiConfig.products}/$id');
+      if (response.statusCode == 200) {
+        final body = response.data;
+        // Endpoint show membungkus payload dalam { data: {...} }.
+        if (body is Map<String, dynamic> && body['data'] is Map) {
+          return Map<String, dynamic>.from(body['data'] as Map);
+        }
+        if (body is Map<String, dynamic>) return body;
+      }
+      throw Exception('Gagal memuat detail produk (${response.statusCode})');
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ProductService] detail DioException: ${e.type} '
+            '${e.response?.statusCode}');
+      }
+      throw Exception(_readableError(e));
+    }
+  }
+
+  /// Ambil konten belajar dari `GET /products/{id}/content`.
+  /// URL konten asli hanya terisi bila user sudah membeli atau item gratis;
+  /// item terkunci dikembalikan dengan `locked: true` & `content_url: null`.
+  Future<ProductContent> fetchProductContent(int id) async {
+    try {
+      final response =
+          await ApiService.dio.get(ApiConfig.productContent(id));
+      if (response.statusCode == 200) {
+        final body = response.data;
+        if (body is Map<String, dynamic> && body['data'] is Map) {
+          return ProductContent.fromJson(
+              Map<String, dynamic>.from(body['data'] as Map));
+        }
+        if (body is Map<String, dynamic>) {
+          return ProductContent.fromJson(body);
+        }
+      }
+      throw Exception('Gagal memuat konten (${response.statusCode})');
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ProductService] content DioException: ${e.type} '
+            '${e.response?.statusCode}');
       }
       throw Exception(_readableError(e));
     }

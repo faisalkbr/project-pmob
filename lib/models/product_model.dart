@@ -2,6 +2,8 @@
 // FILE: lib/models/product_model.dart
 // ============================================
 
+import '../config/api_config.dart';
+
 /// Tipe produk Mark-Up. Modul/Kelas/Bootcamp masuk grid produk,
 /// Mentoring punya section sendiri (lihat MentorModel).
 enum ProductType { modul, kelas, bootcamp, mentoring }
@@ -119,6 +121,10 @@ class ProductModel {
       originalPrice == null ? null : _rupiah(originalPrice!);
 
   String get formattedRating => rating.toStringAsFixed(1);
+
+  /// URL gambar siap pakai (relatif backend → full via media proxy).
+  String get resolvedImage => ApiConfig.resolveImageUrl(imageUrl);
+
   String get formattedStudents =>
       students >= 1000 ? '${(students / 1000).toStringAsFixed(1)}k+' : '$students+';
 
