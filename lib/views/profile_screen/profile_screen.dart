@@ -5,12 +5,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/app_routes.dart';
-import '../../services/storage_service.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/transaction_viewmodel.dart';
+import '../admin/admin_home_screen.dart';
+import '../learning/my_learning_screen.dart';
 import '../transaction_screen/transaction_history_screen.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -29,23 +32,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color _red    = Color(0xFFE53935);
   static const Color _green  = Color(0xFF16A34A);
 
-  String _name  = '';
-  String _email = '';
-
   @override
   void initState() {
     super.initState();
-    _loadUserInfo();
+    // Tampilkan data lokal dulu (instan), lalu sinkronkan dari server.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthViewModel>();
+      auth.hydrate();
+      auth.loadProfile();
+      // Muat stats (transaksi & produk) bila belum ada.
+      final trx = context.read<TransactionViewModel>();
+      if (trx.history.isEmpty) trx.loadHistory();
+    });
   }
 
-  Future<void> _loadUserInfo() async {
-    final name  = await StorageService.getUserName()  ?? '';
-    final email = await StorageService.getUserEmail() ?? '';
-    if (mounted) setState(() { _name = name; _email = email; });
+  Future<void> _refresh() async {
+    final auth = context.read<AuthViewModel>();
+    final trx = context.read<TransactionViewModel>();
+    await Future.wait([auth.loadProfile(), trx.refreshHistory()]);
   }
 
-  String get _initials {
-    final parts = _name.trim().split(RegExp(r'\s+'));
+  void _openAdmin() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminHomeScreen()),
+    );
+  }
+
+  void _openEditProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const EditProfileScreen()),
+    );
+  }
+
+  String _initialsOf(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '?';
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return (parts.first[0] + parts.last[0]).toUpperCase();
@@ -55,6 +75,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
           builder: (_) => const TransactionHistoryScreen()),
+    );
+  }
+
+  void _openMyLearning() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const MyLearningScreen()),
     );
   }
 
@@ -103,19 +129,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: _bg,
       body: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
-              _buildStatsRow(),
-              const SizedBox(height: 24),
-              _buildMenuSection(),
-              const SizedBox(height: 16),
-              _buildLogoutButton(),
-              SizedBox(height: MediaQuery.of(context).padding.bottom + 32),
-            ],
+        child: RefreshIndicator(
+          color: _purple,
+          onRefresh: _refresh,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Center(
+              child: ConstrainedBox(
+                // Batasi lebar di layar lebar (tablet/desktop) agar tidak melar.
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 24),
+                    _buildStatsRow(),
+                    const SizedBox(height: 24),
+                    _buildMenuSection(),
+                    const SizedBox(height: 16),
+                    _buildLogoutButton(),
+                    SizedBox(
+                        height: MediaQuery.of(context).padding.bottom + 32),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -125,6 +163,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ─── Header / Avatar ────────────────────────────────────────────────────────
 
   Widget _buildHeader() {
+    final auth = context.watch<AuthViewModel>();
+    final name = auth.name.isEmpty ? 'User Mark-Up' : auth.name;
+    final email = auth.email;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
       decoration: const BoxDecoration(
@@ -151,7 +193,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             alignment: Alignment.center,
             child: Text(
-              _initials,
+              _initialsOf(name),
               style: GoogleFonts.spaceGrotesk(
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
@@ -161,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 14),
           Text(
-            _name.isEmpty ? 'User Mark-Up' : _name,
+            name,
             style: GoogleFonts.spaceGrotesk(
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -170,30 +212,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            _email,
+            email,
             style: GoogleFonts.manrope(
               fontSize: 13,
               color: Colors.white.withValues(alpha: 0.75),
             ),
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.25)),
-            ),
-            child: Text(
-              'Member Mark-Up',
-              style: GoogleFonts.manrope(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: 0.4,
+          const SizedBox(height: 16),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.25)),
+                ),
+                child: Text(
+                  auth.isAdmin ? 'Admin Mark-Up' : 'Member Mark-Up',
+                  style: GoogleFonts.manrope(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: 0.4,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Material(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: _openEditProfile,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.edit_outlined,
+                            size: 13, color: Colors.white),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Edit Profil',
+                          style: GoogleFonts.manrope(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -245,6 +328,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ─── Menu ───────────────────────────────────────────────────────────────────
 
   Widget _buildMenuSection() {
+    final isAdmin = context.watch<AuthViewModel>().isAdmin;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -260,6 +344,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          if (isAdmin) ...[
+            _MenuTile(
+              icon: Icons.admin_panel_settings_rounded,
+              label: 'Panel Admin',
+              subtitle: 'Kelola produk, mentor, dan lomba',
+              iconBg: const Color(0x148B008B),
+              iconColor: _purple,
+              onTap: _openAdmin,
+            ),
+            const SizedBox(height: 8),
+          ],
           _MenuTile(
             icon: Icons.receipt_long_rounded,
             label: 'Riwayat Transaksi',
@@ -275,16 +370,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: 'Akses konten yang sudah dibeli',
             iconBg: const Color(0x1416A34A),
             iconColor: _green,
-            onTap: _openHistory,
+            onTap: _openMyLearning,
           ),
           const SizedBox(height: 8),
           _MenuTile(
             icon: Icons.help_outline_rounded,
             label: 'Bantuan',
-            subtitle: 'FAQ dan hubungi kami',
-            iconBg: const Color(0x14F59E0B),
-            iconColor: const Color(0xFFF59E0B),
-            onTap: () => _showComingSoon('Bantuan'),
+            subtitle: 'Hubungi kami via WhatsApp',
+            iconBg: const Color(0x1425D366),
+            iconColor: const Color(0xFF25D366),
+            onTap: _openWhatsApp,
           ),
         ],
       ),
@@ -311,17 +406,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showComingSoon(String name) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$name segera hadir!',
-            style: GoogleFonts.manrope(fontSize: 13)),
-        backgroundColor: _navy,
-        behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+  // Nomor CS dalam format internasional (087774938725 -> 62 877...).
+  static const String _waNumber = '6287774938725';
+
+  Future<void> _openWhatsApp() async {
+    final auth = context.read<AuthViewModel>();
+    final greeting = auth.name.isEmpty ? '' : ' Saya ${auth.name}.';
+    final text = Uri.encodeComponent(
+        'Halo Admin Mark-Up,$greeting saya butuh bantuan terkait aplikasi.');
+    final uri = Uri.parse('https://wa.me/$_waNumber?text=$text');
+
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Tidak dapat membuka WhatsApp',
+              style: GoogleFonts.manrope(fontSize: 13)),
+          backgroundColor: _red,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 }
 
