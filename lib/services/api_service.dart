@@ -3,7 +3,9 @@
 // ============================================
 
 import 'package:dio/dio.dart';
+import '../app.dart';
 import '../config/api_config.dart';
+import '../config/app_routes.dart';
 import 'storage_service.dart';
 
 class ApiService {
@@ -30,10 +32,19 @@ class ApiService {
           }
           handler.next(options);
         },
-        onError: (error, handler) {
-          // Handle 401 Unauthorized -> redirect ke login
+        onError: (error, handler) async {
+          // Handle 401 Unauthorized -> bersihkan sesi & redirect ke login.
           if (error.response?.statusCode == 401) {
-            StorageService.clearAll();
+            await StorageService.clearAll();
+            final nav = appNavigatorKey.currentState;
+            // Hindari menumpuk login berkali-kali bila beberapa request 401
+            // bersamaan; pushNamedAndRemoveUntil mengosongkan stack.
+            if (nav != null) {
+              nav.pushNamedAndRemoveUntil(
+                AppRoutes.login,
+                (route) => false,
+              );
+            }
           }
           handler.next(error);
         },
