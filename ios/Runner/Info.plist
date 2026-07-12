@@ -45,5 +45,20 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- ===== Google Sign-In (iOS) =====
+	     Ganti kedua placeholder di bawah dengan nilai dari iOS OAuth client
+	     (Google Cloud Console). GIDClientID = iOS client ID. URL scheme =
+	     "reversed client ID" (mis. com.googleusercontent.apps.XXXX). -->
+	<key>GIDClientID</key>
+	<string>PASTE_IOS_CLIENT_ID_HERE</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>PASTE_REVERSED_IOS_CLIENT_ID_HERE</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

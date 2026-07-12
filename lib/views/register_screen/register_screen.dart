@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '/config/app_routes.dart';
+import '/services/google_signin_service.dart';
 import '/config/app_theme.dart';
 import '/viewmodels/auth_viewmodel.dart';
 import '/widgets/custom_text_field.dart'; 
@@ -15,6 +16,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -45,41 +47,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleRegister() async {
+    // Validasi inline per-field (nama, email, password, konfirmasi).
+    if (!_formKey.currentState!.validate()) return;
+
+    // Terms of Service bukan TextFormField → tetap dicek terpisah.
+    if (!_agreedToTerms) {
+      _showSnackBar('Anda harus menyetujui Terms of Service');
+      return;
+    }
+
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     // Password tidak di-trim: spasi adalah bagian sah dari kredensial.
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
-
-    // 1. Validasi Kosong
-    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
-      _showSnackBar('Semua field harus diisi');
-      return;
-    }
-
-    // 2. Validasi Email
-    if (!email.contains('@')) {
-      _showSnackBar('Format email tidak valid');
-      return;
-    }
-
-    // 3. Validasi Panjang Password (sama dengan aturan backend: min 8)
-    if (password.length < 8) {
-      _showSnackBar('Password minimal 8 karakter');
-      return;
-    }
-
-    // 4. VALIDASI BARU: Password & Confirm Password harus sama
-    if (password != confirmPassword) {
-      _showSnackBar('Konfirmasi password tidak cocok');
-      return;
-    }
-
-    // 5. Validasi Terms of Service
-    if (!_agreedToTerms) {
-      _showSnackBar('Anda harus menyetujui Terms of Service');
-      return;
-    }
 
     final authVM = context.read<AuthViewModel>();
     final success = await authVM.register(name, email, password, confirmPassword);
@@ -93,6 +74,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Future<void> _handleGoogleSignIn() async {
+    final authVM = context.read<AuthViewModel>();
+    if (authVM.isLoading) return;
+
+    final success = await authVM.signInWithGoogle();
+
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    } else if (authVM.errorMessage != null) {
+      // errorMessage null artinya user membatalkan — jangan tampilkan snackbar.
+      _showSnackBar(authVM.errorMessage!);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,7 +97,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-          child: Column(
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Judul
@@ -130,6 +130,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: _nameController,
                 label: 'Full Name',
                 hint: 'Alex Sterling',
+                textInputAction: TextInputAction.next,
+                validator: (v) {
+                  final value = (v ?? '').trim();
+                  if (value.isEmpty) return 'Nama wajib diisi';
+                  if (value.length < 3) return 'Nama minimal 3 karakter';
+                  return null;
+                },
               ),
               const SizedBox(height: 20),
 
@@ -139,6 +146,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 label: 'Email',
                 hint: 'alex.s@email.com',
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                validator: (v) {
+                  final value = (v ?? '').trim();
+                  if (value.isEmpty) return 'Email wajib diisi';
+                  final emailRe = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
+                  if (!emailRe.hasMatch(value)) return 'Format email tidak valid';
+                  return null;
+                },
               ),
               const SizedBox(height: 20),
 
@@ -148,6 +163,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 label: 'Password',
                 hint: '••••••••',
                 obscureText: _obscurePassword,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Password wajib diisi';
+                  if (v.length < 8) return 'Password minimal 8 karakter';
+                  return null;
+                },
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -168,6 +188,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 label: 'Confirm Password',
                 hint: '••••••••',
                 obscureText: _obscureConfirmPassword,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Konfirmasi password wajib diisi';
+                  if (v != _passwordController.text) {
+                    return 'Konfirmasi password tidak cocok';
+                  }
+                  return null;
+                },
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
@@ -244,51 +271,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Divider "OR CONTINUE WITH"
-              Row(
-                children: [
-                  Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'OR CONTINUE WITH',
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade400,
-                        letterSpacing: 1.0,
+              // Divider + tombol Google (hanya di platform yang didukung:
+              // Android/iOS — google_sign_in v7 belum mendukung web/desktop).
+              if (GoogleSignInService.isSupported) ...[
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'OR CONTINUE WITH',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade400,
+                          letterSpacing: 1.0,
+                        ),
                       ),
                     ),
-                  ),
-                  Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
-                ],
-              ),
-              const SizedBox(height: 24),
+                    Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-              // Social Login Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildSocialButton(
-                      icon: Image.asset( 
-                        'assets/images/google.png',
-                        height: 20,
-                      ),
-                      label: 'GOOGLE',
-                      onTap: () {},
-                    ),
+                // Tombol Google (full-width)
+                _buildSocialButton(
+                  icon: Image.asset(
+                    'assets/images/google.png',
+                    height: 20,
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildSocialButton(
-                      icon: const Icon(Icons.apple, size: 24, color: Colors.black),
-                      label: 'APPLE',
-                      onTap: () {},
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
+                  label: 'CONTINUE WITH GOOGLE',
+                  onTap: _handleGoogleSignIn,
+                ),
+                const SizedBox(height: 40),
+              ],
 
               // Divider "AUTHENTIC ACCESS" & Login Link
               Row(
@@ -339,6 +355,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 20),
             ],
+            ),
           ),
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '/config/app_routes.dart';
+import '/services/google_signin_service.dart';
 import '/config/app_theme.dart';
 import '/viewmodels/auth_viewmodel.dart';
 import '/widgets/custom_text_field.dart'; // IMPORT BARU
@@ -15,6 +16,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
@@ -27,19 +29,12 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    // Validasi inline per-field; pesan error muncul di bawah masing-masing input.
+    if (!_formKey.currentState!.validate()) return;
+
     final email = _emailController.text.trim();
     // Password tidak di-trim: spasi adalah bagian sah dari kredensial.
     final password = _passwordController.text;
-
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Email dan password harus diisi'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
 
     final authVM = context.read<AuthViewModel>();
     final success = await authVM.login(email, password);
@@ -58,6 +53,27 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handleGoogleSignIn() async {
+    final authVM = context.read<AuthViewModel>();
+    if (authVM.isLoading) return;
+
+    final success = await authVM.signInWithGoogle();
+
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    } else if (authVM.errorMessage != null) {
+      // errorMessage null artinya user membatalkan — jangan tampilkan snackbar.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authVM.errorMessage!),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -65,7 +81,10 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-          child: Column(
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
@@ -80,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.secondary.withOpacity(0.15),
+                        color: AppColors.secondary.withValues(alpha: 0.15),
                         blurRadius: 30,
                         offset: const Offset(0, 10),
                       ),
@@ -125,6 +144,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 label: 'Email Address',
                 hint: 'name@institution.edu',
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                validator: (v) {
+                  final value = (v ?? '').trim();
+                  if (value.isEmpty) return 'Email wajib diisi';
+                  final emailRe = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
+                  if (!emailRe.hasMatch(value)) return 'Format email tidak valid';
+                  return null;
+                },
               ),
               const SizedBox(height: 20),
 
@@ -134,6 +161,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 label: 'Password',
                 hint: '••••••••',
                 obscureText: !_isPasswordVisible,
+                textInputAction: TextInputAction.done,
+                validator: (v) =>
+                    (v == null || v.isEmpty) ? 'Password wajib diisi' : null,
                 suffixIcon: IconButton(
                   icon: Icon(
                     _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
@@ -179,51 +209,41 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 32),
 
-              // 7. Divider "OR CONTINUE WITH"
-              Row(
-                children: [
-                  Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'OR CONTINUE WITH',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade500,
-                        letterSpacing: 0.5,
+              // 7. Divider + tombol Google (hanya di platform yang didukung:
+              // Android/iOS — google_sign_in v7 belum mendukung web/desktop).
+              if (GoogleSignInService.isSupported) ...[
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'OR CONTINUE WITH',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade500,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
-                  ),
-                  Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
-                ],
-              ),
-              const SizedBox(height: 24),
+                    Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-              // 8. Social Login Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildSocialButton(
-                      icon: Image.asset(
-                        'assets/images/google.png',
-                        height: 20,
-                      ),
-                      label: 'Google',
-                      onTap: () {},
-                    ),
+                // 8. Tombol Google (full-width)
+                _buildSocialButton(
+                  icon: Image.asset(
+                    'assets/images/google.png',
+                    height: 20,
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildSocialButton(
-                      icon: const Icon(Icons.apple, size: 24, color: Colors.black),
-                      label: 'Apple',
-                      onTap: () {},
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
+                  label: 'Continue with Google',
+                  onTap: _handleGoogleSignIn,
+                ),
+                const SizedBox(height: 40),
+              ] else
+                const SizedBox(height: 8),
 
               // 9. Bottom Text "New to Mark-Up?"
               Row(
@@ -253,6 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 20),
             ],
+            ),
           ),
         ),
       ),
@@ -276,7 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),

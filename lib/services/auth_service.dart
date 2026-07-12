@@ -79,6 +79,77 @@ class AuthService {
     }
   }
 
+  // ================= LOGIN DENGAN GOOGLE =================
+  // Kirim ID token Google ke backend; backend memverifikasi & menerbitkan
+  // token Sanctum. Respons mengikuti bentuk yang sama dengan /login.
+  Future<Map<String, dynamic>> loginWithGoogle(String idToken) async {
+    try {
+      final response = await ApiService.dio.post(
+        '/auth/google',
+        data: {'id_token': idToken},
+      );
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'token': response.data['access_token'],
+          'user': response.data['user'],
+        };
+      }
+      return {'success': false, 'message': 'Login Google gagal'};
+    } on DioException catch (e) {
+      return {'success': false, 'message': _extractError(e, 'Login Google gagal')};
+    } catch (e) {
+      return {'success': false, 'message': 'Terjadi kesalahan jaringan'};
+    }
+  }
+
+  // ================= GET PROFILE =================
+  // Ambil data user terbaru dari server (sinkronisasi nama/email/role).
+  Future<Map<String, dynamic>> getProfile() async {
+    try {
+      final response = await ApiService.dio.get('/profile');
+      if (response.statusCode == 200) {
+        return {'success': true, 'user': response.data['user']};
+      }
+      return {'success': false, 'message': 'Gagal memuat profil'};
+    } on DioException catch (e) {
+      return {'success': false, 'message': _extractError(e, 'Gagal memuat profil')};
+    } catch (e) {
+      return {'success': false, 'message': 'Tidak dapat terhubung ke server'};
+    }
+  }
+
+  // ================= UPDATE PROFILE =================
+  // Perbarui nama/email. Ganti password opsional: kirim currentPassword +
+  // newPassword (beserta konfirmasi) hanya bila user ingin menggantinya.
+  Future<Map<String, dynamic>> updateProfile({
+    required String name,
+    required String email,
+    String? currentPassword,
+    String? newPassword,
+    String? newPasswordConfirmation,
+  }) async {
+    try {
+      final data = <String, dynamic>{'name': name, 'email': email};
+      if (newPassword != null && newPassword.isNotEmpty) {
+        data['current_password'] = currentPassword;
+        data['password'] = newPassword;
+        data['password_confirmation'] = newPasswordConfirmation;
+      }
+
+      final response = await ApiService.dio.put('/profile', data: data);
+      if (response.statusCode == 200) {
+        return {'success': true, 'user': response.data['user']};
+      }
+      return {'success': false, 'message': 'Gagal memperbarui profil'};
+    } on DioException catch (e) {
+      return {'success': false, 'message': _extractError(e, 'Gagal memperbarui profil')};
+    } catch (e) {
+      return {'success': false, 'message': 'Tidak dapat terhubung ke server'};
+    }
+  }
+
   // ================= LOGOUT =================
   Future<bool> logout() async {
     try {
