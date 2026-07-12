@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../models/transaction_model.dart';
 import '../../viewmodels/transaction_viewmodel.dart';
 import 'transaction_detail_screen.dart';
+import 'transaction_report_screen.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({super.key});
@@ -83,6 +84,36 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: _navy,
+              ),
+            ),
+          ),
+          // Buka Laporan & Filter Tanggal
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const TransactionReportScreen(),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bar_chart_rounded,
+                        size: 18, color: _purple),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Laporan',
+                      style: GoogleFonts.manrope(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _purple,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
