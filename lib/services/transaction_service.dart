@@ -39,6 +39,32 @@ class TransactionService {
     }
   }
 
+  /// POST /api/transactions/{id}/pay — generate ulang token Snap & ambil URL
+  /// pembayaran Midtrans (dipakai untuk retry bayar dari halaman detail).
+  static Future<String> getPaymentUrl(int id) async {
+    try {
+      final res = await _dio.post(ApiConfig.transactionPay(id));
+      if (kDebugMode) debugPrint('[TransactionService] getPaymentUrl($id): ${res.data}');
+      final data = _unwrapSingle(res.data);
+      return (data['payment_url'] ?? '').toString();
+    } on DioException catch (e) {
+      throw _message(e);
+    }
+  }
+
+  /// POST /api/transactions/{id}/sync-status — tarik status terbaru langsung
+  /// dari Midtrans lalu update DB. Dipakai tombol "Cek Status Pembayaran"
+  /// supaya status tidak bergantung webhook saja (fallback bila webhook meleset).
+  static Future<TransactionModel> syncStatus(int id) async {
+    try {
+      final res = await _dio.post(ApiConfig.transactionSyncStatus(id));
+      if (kDebugMode) debugPrint('[TransactionService] syncStatus($id): ${res.data}');
+      return TransactionModel.fromJson(_unwrapSingle(res.data));
+    } on DioException catch (e) {
+      throw _message(e);
+    }
+  }
+
   /// GET /api/my-products — set product_id yang sudah dibeli user (status paid).
   static Future<Set<int>> fetchPurchasedProductIds() async {
     try {
@@ -55,21 +81,16 @@ class TransactionService {
     }
   }
 
-  /// POST /api/transactions/{id}/proof — unggah bukti bayar (multipart).
-  /// Pakai bytes + filename agar jalan di semua platform termasuk Web
-  /// (di Web XFile tidak punya path file asli).
-  static Future<TransactionModel> uploadProof(
-    int id, {
-    required List<int> bytes,
-    required String filename,
-  }) async {
+  /// GET /api/my-learning — produk yang sudah dimiliki user (transaksi paid),
+  /// lengkap dengan judul/tipe/gambar. Sumber kebenaran "Produk Saya" — tidak
+  /// diturunkan dari riwayat (yang dipaginasi & tak memuat items di list).
+  static Future<List<TransactionItemModel>> fetchOwnedProducts() async {
     try {
-      final form = FormData.fromMap({
-        'proof': MultipartFile.fromBytes(bytes, filename: filename),
-      });
-      final res = await _dio.post('${ApiConfig.transactions}/$id/proof', data: form);
-      if (kDebugMode) debugPrint('[TransactionService] uploadProof($id): ${res.data}');
-      return TransactionModel.fromJson(_unwrapSingle(res.data));
+      final res = await _dio.get(ApiConfig.myLearning);
+      if (kDebugMode) debugPrint('[TransactionService] fetchOwnedProducts: ${res.data}');
+      return _unwrapList(res.data)
+          .map((e) => TransactionItemModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
     } on DioException catch (e) {
       throw _message(e);
     }

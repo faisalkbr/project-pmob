@@ -2,14 +2,17 @@
 // FILE: lib/views/transaction_screen/transaction_detail_screen.dart
 // ============================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/cart_item_model.dart';
 import '../../models/transaction_model.dart';
+import '../../services/transaction_service.dart';
 import '../../viewmodels/transaction_viewmodel.dart';
+import '../learning/learning_content_screen.dart';
 import 'transaction_history_screen.dart' show TransactionStatusBadge;
 
 class TransactionDetailScreen extends StatefulWidget {
@@ -28,6 +31,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   static const Color _purple = Color(0xFFA600B2);
   static const Color _muted = Color(0xFF757684);
   static const Color _border = Color(0x14001261);
+
+  bool _isPaying = false;
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -144,7 +150,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         children: [
           _buildSummaryCard(detail),
           const SizedBox(height: 16),
-          _buildPaymentProofCard(detail, vm),
+          _buildStatusCard(detail),
+          if (detail.status == TransactionStatus.pending) ...[
+            const SizedBox(height: 12),
+            _buildPaymentActions(detail),
+          ],
           const SizedBox(height: 16),
           _buildItemsCard(detail),
           const SizedBox(height: 16),
@@ -198,9 +208,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
-  // ─── Bukti pembayaran / status ───────────────────────────────────────────
+  // ─── Status pembayaran ────────────────────────────────────────────────────
 
-  Widget _buildPaymentProofCard(TransactionModel trx, TransactionViewModel vm) {
+  Widget _buildStatusCard(TransactionModel trx) {
     if (trx.status == TransactionStatus.paid) {
       return _statusPanel(
         color: const Color(0xFF1FAA59),
@@ -220,98 +230,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       );
     }
 
-    // status pending → tampilkan instruksi + aksi unggah bukti
-    final uploading = vm.isUploadingProof;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.hourglass_top_rounded,
-                  color: Color(0xFFF59E0B), size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Menunggu Pembayaran',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: _navy,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            trx.hasPaymentProof
-                ? 'Bukti pembayaran terkirim. Menunggu konfirmasi admin — '
-                    'produk akan terbuka setelah diverifikasi.'
-                : 'Bayar lewat QRIS lalu unggah bukti pembayaran agar admin '
-                    'bisa memverifikasi transaksimu.',
-            style: GoogleFonts.manrope(
-                fontSize: 12, color: _muted, height: 1.45),
-          ),
-          if (trx.hasPaymentProof) ...[
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                trx.paymentProofUrl,
-                height: 160,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 160,
-                  color: const Color(0xFFF2F0F8),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.image_not_supported_outlined,
-                      color: _muted),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: uploading ? null : () => _pickAndUploadProof(trx.id),
-              icon: uploading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: _purple),
-                    )
-                  : Icon(
-                      trx.hasPaymentProof
-                          ? Icons.cached_rounded
-                          : Icons.upload_file_rounded,
-                      size: 18),
-              label: Text(
-                uploading
-                    ? 'Mengunggah...'
-                    : (trx.hasPaymentProof
-                        ? 'Ganti Bukti'
-                        : 'Unggah Bukti Pembayaran'),
-                style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _navy,
-                side: const BorderSide(color: _purple),
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
-        ],
-      ),
+    // status pending → menunggu pembayaran (akan ditangani Midtrans).
+    return _statusPanel(
+      color: const Color(0xFFF59E0B),
+      icon: Icons.hourglass_top_rounded,
+      title: 'Menunggu Pembayaran',
+      subtitle: 'Selesaikan pembayaran untuk membuka produk.',
     );
   }
 
@@ -358,38 +282,151 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
-  Future<void> _pickAndUploadProof(int id) async {
-    final XFile? file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-      maxWidth: 1600,
-    );
-    if (file == null || !mounted) return;
 
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
+  // ─── Aksi pembayaran (Midtrans) ──────────────────────────────────────────
 
-    final vm = context.read<TransactionViewModel>();
-    final ok = await vm.uploadProof(id, bytes: bytes, filename: file.name);
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Bukti pembayaran terkirim. Menunggu konfirmasi admin.'
-              : (vm.uploadProofError ?? 'Gagal mengunggah bukti.'),
-          style: GoogleFonts.manrope(fontSize: 13),
+  Widget _buildPaymentActions(TransactionModel trx) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton.icon(
+          onPressed: _isPaying ? null : () => _openPayment(trx),
+          style: FilledButton.styleFrom(
+            backgroundColor: _purple,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+          ),
+          icon: _isPaying
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.account_balance_wallet_rounded, size: 18),
+          label: Text(
+            _isPaying ? 'Membuka pembayaran...' : 'Bayar Sekarang',
+            style: GoogleFonts.manrope(
+                fontSize: 14, fontWeight: FontWeight.w700),
+          ),
         ),
-        backgroundColor: ok ? const Color(0xFF1FAA59) : Colors.red.shade600,
-        behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: (_isPaying || _isSyncing) ? null : _checkStatus,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: _navy,
+            side: BorderSide(color: _navy.withValues(alpha: 0.25)),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+          ),
+          icon: _isSyncing
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: _navy),
+                )
+              : const Icon(Icons.refresh_rounded, size: 18),
+          label: Text(
+            _isSyncing ? 'Mengecek...' : 'Cek Status Pembayaran',
+            style: GoogleFonts.manrope(
+                fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
     );
   }
 
+  /// Ambil URL pembayaran Snap (regenerasi token) lalu buka di browser/tab baru.
+  Future<void> _openPayment(TransactionModel trx) async {
+    setState(() => _isPaying = true);
+    try {
+      // Pakai payment_url yang sudah ada bila tersedia, jika tidak minta baru.
+      final url = trx.hasPaymentUrl
+          ? trx.paymentUrl!
+          : await TransactionService.getPaymentUrl(trx.id);
+
+      if (url.isEmpty) {
+        throw 'URL pembayaran belum tersedia. Coba lagi sebentar.';
+      }
+
+      final ok = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) throw 'Tidak bisa membuka halaman pembayaran.';
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Setelah membayar, tekan "Cek Status Pembayaran".',
+            style: GoogleFonts.manrope(fontSize: 13),
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString(), style: GoogleFonts.manrope(fontSize: 13)),
+          backgroundColor: const Color(0xFFE53935),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isPaying = false);
+    }
+  }
+
+  /// Tarik status terbaru dari Midtrans lewat VM lalu beri feedback hasilnya.
+  Future<void> _checkStatus() async {
+    setState(() => _isSyncing = true);
+    try {
+      final trx =
+          await context.read<TransactionViewModel>().syncStatus(widget.transactionId);
+      if (!mounted) return;
+
+      final lunas = trx.status == TransactionStatus.paid;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            lunas
+                ? 'Pembayaran terkonfirmasi — transaksi Lunas.'
+                : 'Status: ${trx.status.label}. Belum ada pembayaran masuk.',
+            style: GoogleFonts.manrope(fontSize: 13),
+          ),
+          backgroundColor: lunas ? const Color(0xFF1FAA59) : null,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString(), style: GoogleFonts.manrope(fontSize: 13)),
+          backgroundColor: const Color(0xFFE53935),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
+    }
+  }
+
   Widget _buildItemsCard(TransactionModel trx) {
+    final isPaid = trx.status == TransactionStatus.paid;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -408,6 +445,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               color: _navy,
             ),
           ),
+          if (isPaid) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Ketuk item untuk membuka materinya.',
+              style: GoogleFonts.manrope(fontSize: 11, color: _muted),
+            ),
+          ],
           const SizedBox(height: 12),
           for (var i = 0; i < trx.items.length; i++) ...[
             if (i > 0)
@@ -415,9 +459,27 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Divider(height: 1, color: _border),
               ),
-            _ItemRow(item: trx.items[i]),
+            _ItemRow(
+              item: trx.items[i],
+              onTap: (isPaid && trx.items[i].productId != null)
+                  ? () => _openContent(trx.items[i])
+                  : null,
+            ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Buka layar materi belajar untuk item yang sudah lunas.
+  void _openContent(TransactionItemModel item) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LearningContentScreen(
+          productId: item.productId!,
+          productTitle: item.productTitle,
+          productType: item.productType ?? 'modul',
+        ),
       ),
     );
   }
@@ -513,16 +575,18 @@ class _SummaryRow extends StatelessWidget {
 }
 
 class _ItemRow extends StatelessWidget {
-  const _ItemRow({required this.item});
+  const _ItemRow({required this.item, this.onTap});
   final TransactionItemModel item;
+  final VoidCallback? onTap;
 
   static const Color _navy = Color(0xFF001261);
+  static const Color _purple = Color(0xFFA600B2);
   static const Color _muted = Color(0xFF757684);
   static const Color _surface = Color(0xFFF2F0F8);
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ClipRRect(
@@ -573,19 +637,61 @@ class _ItemRow extends StatelessWidget {
                 '${Cart.rupiah(item.price)} × ${item.quantity}',
                 style: GoogleFonts.manrope(fontSize: 11, color: _muted),
               ),
+              if (onTap != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.play_circle_fill_rounded,
+                        size: 15, color: _purple),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Mulai belajar',
+                      style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: _purple,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          Cart.rupiah(item.subtotal),
-          style: GoogleFonts.spaceGrotesk(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: _navy,
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              Cart.rupiah(item.subtotal),
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _navy,
+              ),
+            ),
+            if (onTap != null) ...[
+              const SizedBox(height: 14),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 20, color: _purple),
+            ],
+          ],
         ),
       ],
+    );
+
+    if (onTap == null) return row;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: row,
+        ),
+      ),
     );
   }
 }
@@ -597,12 +703,11 @@ class _Image extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (url == null || url!.isEmpty) return _placeholder();
-    return Image.network(
-      url!,
+    return CachedNetworkImage(
+      imageUrl: url!,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _placeholder(),
-      loadingBuilder: (_, child, prog) =>
-          prog == null ? child : _placeholder(),
+      placeholder: (_, __) => _placeholder(),
+      errorWidget: (_, __, ___) => _placeholder(),
     );
   }
 

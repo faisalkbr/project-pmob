@@ -2,6 +2,7 @@
 // FILE: lib/widgets/cart_item_card.dart
 // ============================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -61,7 +62,8 @@ class CartItemCard extends StatelessWidget {
   }
 
   Widget _buildThumbnail(ProductTypeStyle style) {
-    final hasImage = item.product.imageUrl.isNotEmpty;
+    final imageUrl = item.product.resolvedImage;
+    final hasImage = imageUrl.isNotEmpty;
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
@@ -71,12 +73,11 @@ class CartItemCard extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (hasImage)
-              Image.network(
-                item.product.imageUrl,
+              CachedNetworkImage(
+                imageUrl: imageUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _gradient(style),
-                loadingBuilder: (_, child, prog) =>
-                    prog == null ? child : _gradient(style),
+                placeholder: (_, __) => _gradient(style),
+                errorWidget: (_, __, ___) => _gradient(style),
               )
             else
               _gradient(style),

@@ -118,8 +118,10 @@ class TransactionModel {
   final int itemsCount;
   final List<TransactionItemModel> items;
 
-  /// URL bukti bayar (sudah di-resolve ke host saat ini). Kosong jika belum diunggah.
-  final String paymentProofUrl;
+  /// URL halaman pembayaran Snap Midtrans (redirect_url). Dibuka di browser
+  /// untuk menyelesaikan pembayaran. Null jika Snap belum/ gagal dibuat.
+  final String? paymentUrl;
+  final String? snapToken;
 
   const TransactionModel({
     required this.id,
@@ -129,12 +131,13 @@ class TransactionModel {
     required this.status,
     required this.itemsCount,
     required this.items,
-    this.paymentProofUrl = '',
     this.paidAt,
     this.createdAt,
+    this.paymentUrl,
+    this.snapToken,
   });
 
-  bool get hasPaymentProof => paymentProofUrl.isNotEmpty;
+  bool get hasPaymentUrl => (paymentUrl ?? '').isNotEmpty;
 
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
@@ -154,11 +157,11 @@ class TransactionModel {
       status: TransactionStatusX.fromString(json['status']?.toString()),
       paidAt: _asDate(json['paid_at']),
       createdAt: _asDate(json['created_at']),
-      paymentProofUrl:
-          ApiConfig.resolveImageUrl(json['payment_proof_url']?.toString()),
       itemsCount:
           json['items_count'] != null ? _asInt(json['items_count']) : items.length,
       items: items,
+      paymentUrl: json['payment_url']?.toString(),
+      snapToken: json['snap_token']?.toString(),
     );
   }
 

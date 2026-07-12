@@ -43,6 +43,34 @@ class TransactionViewModel extends ChangeNotifier {
   String? get historyError => _historyError;
   bool get isHistoryLoading => _historyState == TransactionListState.loading;
 
+  // ─── Produk yang dimiliki (untuk "Produk Saya") ─────────────────────────────
+
+  List<TransactionItemModel> _ownedProducts = [];
+  TransactionListState _ownedState = TransactionListState.idle;
+  String? _ownedError;
+
+  List<TransactionItemModel> get ownedProducts => _ownedProducts;
+  TransactionListState get ownedState => _ownedState;
+  String? get ownedError => _ownedError;
+  bool get isOwnedLoading => _ownedState == TransactionListState.loading;
+
+  /// Muat produk yang dimiliki dari endpoint khusus (/my-learning). Sumber
+  /// kebenaran sendiri — tidak diturunkan dari riwayat yang dipaginasi.
+  Future<void> loadOwnedProducts() async {
+    _ownedState = TransactionListState.loading;
+    _ownedError = null;
+    notifyListeners();
+
+    try {
+      _ownedProducts = await TransactionService.fetchOwnedProducts();
+      _ownedState = TransactionListState.idle;
+    } catch (e) {
+      _ownedError = e.toString();
+      _ownedState = TransactionListState.error;
+    }
+    notifyListeners();
+  }
+
   Future<void> loadHistory() async {
     _historyState = TransactionListState.loading;
     _historyError = null;
@@ -87,6 +115,22 @@ class TransactionViewModel extends ChangeNotifier {
     }
   }
 
+  /// Tarik status terbaru dari Midtrans (Status API) lalu sinkronkan detail,
+  /// history, dan purchasedIds. Dipakai tombol "Cek Status Pembayaran".
+  /// Mengembalikan transaksi terbaru bila sukses, melempar bila gagal.
+  Future<TransactionModel> syncStatus(int id) async {
+    final trx = await TransactionService.syncStatus(id);
+    _detail = trx;
+    _history = _history.map((t) => t.id == trx.id ? trx : t).toList();
+    // Kalau sudah lunas, refresh daftar produk yang terbuka (badge + Produk Saya).
+    if (trx.status == TransactionStatus.paid) {
+      await loadPurchasedIds();
+      await loadOwnedProducts();
+    }
+    notifyListeners();
+    return trx;
+  }
+
   /// Set detail dari hasil checkout langsung — supaya halaman detail bisa
   /// menampilkan data tanpa request kedua.
   void setDetail(TransactionModel transaction) {
@@ -100,40 +144,6 @@ class TransactionViewModel extends ChangeNotifier {
     _detail = null;
     _detailError = null;
     _detailLoading = false;
-  }
-
-  // ─── Upload bukti bayar ──────────────────────────────────────────────────────
-
-  bool _isUploadingProof = false;
-  String? _uploadProofError;
-
-  bool get isUploadingProof => _isUploadingProof;
-  String? get uploadProofError => _uploadProofError;
-
-  /// Unggah bukti bayar untuk transaksi [id]. Mengembalikan true jika sukses.
-  /// Status tetap 'pending' — admin yang mengonfirmasi manual.
-  Future<bool> uploadProof(
-    int id, {
-    required List<int> bytes,
-    required String filename,
-  }) async {
-    _isUploadingProof = true;
-    _uploadProofError = null;
-    notifyListeners();
-
-    try {
-      final updated =
-          await TransactionService.uploadProof(id, bytes: bytes, filename: filename);
-      _detail = updated;
-      _history = _history.map((t) => t.id == updated.id ? updated : t).toList();
-      return true;
-    } catch (e) {
-      _uploadProofError = e.toString();
-      return false;
-    } finally {
-      _isUploadingProof = false;
-      notifyListeners();
-    }
   }
 
   // ─── Checkout ──────────────────────────────────────────────────────────────
@@ -157,9 +167,10 @@ class TransactionViewModel extends ChangeNotifier {
       // baru sudah ada di atas tanpa perlu refetch.
       _history = [trx, ..._history];
       _detail = trx;
-      // CATATAN: transaksi mulai 'pending' (validasi manual). Produk BELUM
-      // terbuka di sini — purchasedIds baru terisi setelah admin set 'paid'
-      // dan user me-refresh (loadPurchasedIds). Jangan grant optimistik.
+      // CATATAN: transaksi mulai 'pending'. Produk BELUM terbuka di sini —
+      // purchasedIds baru terisi setelah Midtrans mengonfirmasi 'paid'
+      // (webhook/sync-status) dan user me-refresh (loadPurchasedIds).
+      // Jangan grant optimistik.
       return trx;
     } catch (e) {
       _checkoutError = e.toString();

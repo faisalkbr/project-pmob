@@ -10,8 +10,6 @@ import '../models/transaction_model.dart';
 import '../viewmodels/cart_viewmodel.dart';
 import '../viewmodels/transaction_viewmodel.dart';
 import '../widgets/cart_item_card.dart';
-import '../widgets/payment_method_sheet.dart';
-import '../widgets/qris_payment_sheet.dart';
 import 'transaction_screen/transaction_detail_screen.dart';
 
 class CartScreen extends StatefulWidget {
@@ -40,22 +38,6 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _checkout(CartViewModel cartVm) async {
     final txVm = context.read<TransactionViewModel>();
-    final method = await showPaymentMethodSheet(
-      context,
-      totalAmount: cartVm.subtotal,
-    );
-    if (method == null || !mounted) return;
-
-    // QRIS punya alur khusus: tampilkan QR dulu, tunggu konfirmasi user,
-    // baru lanjut hit API checkout.
-    if (method == PaymentMethod.qris) {
-      final paid = await showQrisPaymentSheet(
-        context,
-        totalAmount: cartVm.subtotal,
-        merchantName: 'Mark-Up Indonesia',
-      );
-      if (paid != true || !mounted) return;
-    }
 
     // Tampilkan loading dialog selama proses checkout.
     showDialog<void>(
@@ -66,7 +48,9 @@ class _CartScreenState extends State<CartScreen> {
       ),
     );
 
-    final trx = await txVm.checkout(method);
+    // Pembayaran (semua metode, termasuk QRIS) akan ditangani Midtrans.
+    // Untuk sekarang checkout hanya membuat transaksi berstatus 'pending'.
+    final trx = await txVm.checkout(PaymentMethod.qris);
 
     if (!mounted) return;
     Navigator.of(context).pop(); // tutup loading
@@ -120,8 +104,7 @@ class _CartScreenState extends State<CartScreen> {
         ),
         content: Text(
           'Transaksi ${trx.code} sebesar ${trx.formattedTotal} dibuat dan '
-          'menunggu pembayaran. Unggah bukti bayar di halaman detail, lalu '
-          'admin akan memverifikasi sebelum produk terbuka.',
+          'menunggu pembayaran. Selesaikan pembayaran untuk membuka produk.',
           style: GoogleFonts.manrope(fontSize: 13, color: _muted, height: 1.4),
         ),
         actions: [
