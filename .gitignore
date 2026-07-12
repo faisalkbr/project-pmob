@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android signing — JANGAN commit kredensial atau keystore rilis
+/android/key.properties
+**/*.jks
+**/*.keystore

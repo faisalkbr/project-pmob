@@ -1,0 +1,18 @@
+# Template kredensial signing rilis. SALIN file ini menjadi `key.properties`
+# (di folder android/), lalu isi nilainya. JANGAN commit key.properties asli.
+#
+# 1. Buat keystore (sekali saja, simpan aman — kalau hilang tidak bisa update
+#    app di Play Store):
+#
+#    keytool -genkey -v -keystore upload-keystore.jks \
+#      -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+#    Letakkan upload-keystore.jks di android/app/ (atau pakai path absolut di
+#    storeFile di bawah).
+#
+# 2. Isi nilai sesuai yang kamu masukkan saat membuat keystore:
+
+storePassword=GANTI_PASSWORD_STORE
+keyPassword=GANTI_PASSWORD_KEY
+keyAlias=upload
+storeFile=upload-keystore.jks
