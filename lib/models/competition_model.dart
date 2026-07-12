@@ -59,10 +59,10 @@ class CompetitionModel {
       registrationFee: parseInt(json['registration_fee'] ?? json['biaya']),
       registrationFeeLabel: json['registration_fee_label']?.toString(),
       prize: parseInt(json['prize'] ?? json['hadiah']),
-      // Resolusi terhadap host backend saat ini agar gambar tetap muncul
-      // walau DB menyimpan host absolut yang basi / saat pindah platform.
-      imageUrl: ApiConfig.resolveImageUrl(
-          (json['image_url'] ?? json['image'] ?? json['gambar'] ?? '').toString()),
+      // Simpan path mentah; resolusi ke host backend dilakukan sekali di
+      // getter `resolvedImage` (hindari double-resolve).
+      imageUrl:
+          (json['image_url'] ?? json['image'] ?? json['gambar'] ?? '').toString(),
       registrationLink: (json['link_pendaftaran'] ??
               json['registration_link'] ??
               json['link'] ??
@@ -91,6 +91,9 @@ class CompetitionModel {
   }
 
   String get formattedPrize => _rupiah(prize);
+
+  /// URL gambar siap pakai (relatif backend → full via media proxy).
+  String get resolvedImage => ApiConfig.resolveImageUrl(imageUrl);
 
   // ===== Formatter manual (tanpa dependency `intl`) =====
 

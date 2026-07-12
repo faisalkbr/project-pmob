@@ -4,6 +4,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../config/api_config.dart';
+
 /// Model kaya untuk On-Demand Mentoring section di ProductScreen.
 class MentorModel {
   final int id;
@@ -109,31 +111,8 @@ class MentorModel {
   }
 
   String get formattedRating => rating.toStringAsFixed(1);
-}
 
-// ============================================
-// Legacy model — dipakai oleh booking screen / view lama.
-// Dibiarkan agar tidak merusak kode existing.
-// ============================================
-class Mentor {
-  final int idBooking;
-  final String nama;
-  final String spesialisasi;
-  final int statusAktif;
-
-  Mentor({
-    required this.idBooking,
-    required this.nama,
-    required this.spesialisasi,
-    required this.statusAktif,
-  });
-
-  factory Mentor.fromJson(Map<String, dynamic> json) {
-    return Mentor(
-      idBooking: json['ID_BOOKING'],
-      nama: json['NAMA'],
-      spesialisasi: json['SPESIALISASI'],
-      statusAktif: json['STATUS_AKTIF'],
-    );
-  }
+  /// URL avatar siap pakai (relatif backend → full via media proxy).
+  /// Kosong jika tidak ada avatar.
+  String get resolvedAvatar => ApiConfig.resolveImageUrl(avatarUrl);
 }
