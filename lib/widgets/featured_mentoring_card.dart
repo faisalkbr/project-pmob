@@ -4,6 +4,7 @@
 // FeaturedProductCard sesuai update design Mark-Up Prototype).
 // ============================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -42,7 +43,7 @@ class FeaturedMentoringCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: _navy.withOpacity(0.25),
+            color: _navy.withValues(alpha: 0.25),
             blurRadius: 40,
             offset: const Offset(0, 12),
           ),
@@ -60,7 +61,7 @@ class FeaturedMentoringCard extends StatelessWidget {
                 height: 140,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _purple.withOpacity(0.25),
+                  color: _purple.withValues(alpha: 0.25),
                 ),
               ),
             ),
@@ -72,7 +73,7 @@ class FeaturedMentoringCard extends StatelessWidget {
                 height: 90,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _yellow.withOpacity(0.08),
+                  color: _yellow.withValues(alpha: 0.08),
                 ),
               ),
             ),
@@ -108,7 +109,7 @@ class FeaturedMentoringCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: _liveGreen.withOpacity(0.2),
+            color: _liveGreen.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
@@ -175,7 +176,7 @@ class FeaturedMentoringCard extends StatelessWidget {
             '1-on-1 dengan mentor juara —\nfleksibel, sesuai kebutuhanmu.',
             style: GoogleFonts.manrope(
               fontSize: 12,
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               height: 1.5,
             ),
           ),
@@ -188,9 +189,9 @@ class FeaturedMentoringCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.18)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
       ),
       child: Row(
         children: [
@@ -206,14 +207,30 @@ class FeaturedMentoringCard extends StatelessWidget {
               ),
             ),
             alignment: Alignment.center,
-            child: Text(
-              m.initials,
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: m.resolvedAvatar.isEmpty
+                ? Text(
+                    m.initials,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  )
+                : CachedNetworkImage(
+                    imageUrl: m.resolvedAvatar,
+                    width: 38,
+                    height: 38,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Text(
+                      m.initials,
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -256,7 +273,7 @@ class FeaturedMentoringCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.manrope(
                     fontSize: 11,
-                    color: Colors.white.withOpacity(0.65),
+                    color: Colors.white.withValues(alpha: 0.65),
                   ),
                 ),
               ],
@@ -281,7 +298,7 @@ class FeaturedMentoringCard extends StatelessWidget {
                 'Mulai dari',
                 style: GoogleFonts.manrope(
                   fontSize: 11,
-                  color: Colors.white.withOpacity(0.6),
+                  color: Colors.white.withValues(alpha: 0.6),
                 ),
               ),
               Text(

@@ -2,6 +2,7 @@
 // FILE: lib/widgets/competition_image_preview.dart
 // ============================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -80,7 +81,8 @@ class _CompetitionImagePreview extends StatelessWidget {
   }
 
   Widget _buildImage() {
-    if (competition.imageUrl.isEmpty) {
+    final imageUrl = competition.resolvedImage;
+    if (imageUrl.isEmpty) {
       return Container(
         color: Colors.grey.shade800,
         padding: const EdgeInsets.all(32),
@@ -91,21 +93,20 @@ class _CompetitionImagePreview extends StatelessWidget {
         ),
       );
     }
-    return Image.network(
-      competition.imageUrl,
+    return CachedNetworkImage(
+      imageUrl: imageUrl,
       fit: BoxFit.contain,
-      loadingBuilder: (_, child, progress) {
-        if (progress == null) return child;
-        return const SizedBox(
+      placeholder: (_, __) => const Center(
+        child: SizedBox(
           width: 40,
           height: 40,
           child: CircularProgressIndicator(
             color: Colors.white,
             strokeWidth: 2.5,
           ),
-        );
-      },
-      errorBuilder: (_, __, ___) => Container(
+        ),
+      ),
+      errorWidget: (_, __, ___) => Container(
         color: Colors.grey.shade800,
         padding: const EdgeInsets.all(32),
         child: const Icon(
@@ -121,7 +122,7 @@ class _CompetitionImagePreview extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.black.withOpacity(0.85), Colors.transparent],
+          colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
         ),
@@ -224,7 +225,7 @@ class _CircleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white.withOpacity(0.2),
+      color: Colors.white.withValues(alpha: 0.2),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -272,7 +273,7 @@ class _RegistrationLinkBar extends StatelessWidget {
             padding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
+              color: Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white24),
             ),

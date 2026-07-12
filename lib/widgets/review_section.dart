@@ -48,7 +48,6 @@ class _ReviewBodyState extends State<_ReviewBody> {
   static const Color _muted = Color(0xFF757684);
   static const Color _border = Color(0x14001261);
   static const Color _purpleFaint = Color(0x14A600B2);
-  static const Color _red = Color(0xFFE53935);
 
   bool _expanded = false;
 

@@ -7,11 +7,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/product_model.dart';
+import '../../services/product_service.dart';
 import '../../viewmodels/cart_viewmodel.dart';
 import '../../viewmodels/transaction_viewmodel.dart';
 import '../../widgets/detail_widgets.dart';
 import '../../widgets/review_section.dart';
 import '../cart_screen.dart';
+import '../learning/learning_content_screen.dart';
+import 'detail_data_helpers.dart';
 
 class DetailBootcampScreen extends StatefulWidget {
   const DetailBootcampScreen({super.key, required this.product});
@@ -70,68 +73,71 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
   }
 
   void _onAccessContent() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Kamu sudah memiliki akses ke ${widget.product.title}',
-                style: GoogleFonts.manrope(fontSize: 13),
-                maxLines: 2,
-              ),
-            ),
-          ],
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LearningContentScreen(
+          productId: widget.product.id,
+          productTitle: widget.product.title,
+          productType: widget.product.type.apiValue,
         ),
-        backgroundColor: const Color(0xFF16A34A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  static const _batches = [
-    _Batch('Batch 5 — Mei 2026', '5 Mei – 2 Jun 2026', 8, 'open'),
-    _Batch('Batch 6 — Juni 2026', '2 Jun – 30 Jun 2026', 20, 'soon'),
-  ];
+  final _productService = ProductService();
+  Map<String, dynamic>? _detail;
+  bool _loadingDetail = true;
 
-  static const _weeks = [
-    _Week('Minggu 1', 'Fondasi & Mindset Juara', [
-      'Orientasi & pengenalan tim',
-      'Framework analisis bisnis',
-      'Riset kompetitif cepat',
-      'Live session: Mentor Q&A',
-    ]),
-    _Week('Minggu 2', 'Riset Mendalam & Ideasi', [
-      'Metodologi riset advanced',
-      'Design thinking untuk lomba',
-      'Workshop ideasi solusi',
-      'Review & feedback sesi 1',
-    ]),
-    _Week('Minggu 3', 'Bangun Solusi & Pitch Deck', [
-      'Struktur solusi bisnis',
-      'Storytelling dengan data',
-      'Desain slide presentasi',
-      'Mock pitch internal',
-    ]),
-    _Week('Minggu 4', 'Simulasi & Final Prep', [
-      'Simulasi lomba penuh',
-      'Teknik Q&A dengan juri',
-      'Revisi final pitch',
-      'Sesi motivasi & closing',
-    ]),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadDetail();
+  }
 
-  static const _includes = [
-    (Icons.videocam_rounded, '16 live session Zoom (rekaman tersedia)'),
-    (Icons.groups_rounded, '1 sesi 1-on-1 mentoring eksklusif'),
-    (Icons.menu_book_rounded, 'Materi & workbook lengkap (150+ hal)'),
-    (Icons.bolt_rounded, 'Grup WhatsApp mentor aktif 30 hari'),
-    (Icons.emoji_events_rounded, 'Studi kasus lomba tingkat nasional'),
-    (Icons.verified_rounded, 'Sertifikat bootcamp resmi Mark-Up'),
-  ];
+  Future<void> _loadDetail() async {
+    try {
+      final data = await _productService.fetchProductDetail(widget.product.id);
+      if (mounted) setState(() => _detail = data);
+    } catch (_) {
+      // UI tetap pakai data dasar dari widget.product.
+    } finally {
+      if (mounted) setState(() => _loadingDetail = false);
+    }
+  }
+
+  // ── Helper data (real dari API, fallback ke nilai dasar) ────────────────
+  int _asInt(dynamic v) => v is int ? v : int.tryParse('${v ?? ''}') ?? 0;
+
+  int get _students =>
+      _detail?['students'] is int ? _detail!['students'] as int : widget.product.students;
+  double get _rating {
+    final v = _detail?['rating'];
+    return v is num ? v.toDouble() : widget.product.rating;
+  }
+
+  // Rating dinamis dari rata-rata seluruh review user (endpoint show).
+  int get _totalReviews => _asInt(_detail?['total_reviews']);
+  double get _ratingAvg {
+    final v = _detail?['rating_avg'];
+    return v is num ? v.toDouble() : 0;
+  }
+
+  String get _ratingStat =>
+      _totalReviews > 0 ? '${_ratingAvg.toStringAsFixed(1)}★' : 'Baru';
+
+  String get _duration =>
+      (_detail?['duration'] ?? widget.product.duration).toString();
+  String get _description => (_detail?['description'] ?? '').toString();
+  List<Map<String, dynamic>> get _includes => detailMapList(_detail?['includes']);
+  List<Map<String, dynamic>> get _sections =>
+      detailMapList(_detail?['curriculum_sections']);
+  List<Map<String, dynamic>> get _batches => detailMapList(_detail?['batches']);
+
+  String get _studentsLabel =>
+      _students >= 1000 ? '${(_students / 1000).toStringAsFixed(1)}k+' : '$_students+';
+
+  int get _itemCount =>
+      _sections.fold(0, (sum, s) => sum + detailMapList(s['items']).length);
 
   @override
   Widget build(BuildContext context) {
@@ -161,69 +167,35 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
                         ),
                         const SizedBox(height: 10),
                         StarRatingRow(
-                          rating: widget.product.rating,
-                          count: '${widget.product.students} ulasan',
+                          rating: _rating,
+                          count: '$_students alumni',
                         ),
                         const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: const [
-                            DetailMetaPill(
-                                icon: Icons.calendar_today_rounded,
-                                text: '30 hari program'),
-                            DetailMetaPill(
-                                icon: Icons.groups_rounded,
-                                text: '320+ alumni'),
-                            DetailMetaPill(
-                                icon: Icons.videocam_rounded,
-                                text: '16 live session'),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        Text(
-                          'PILIH BATCH',
-                          style: GoogleFonts.manrope(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: DetailColors.muted,
-                            letterSpacing: 0.8,
+                        _buildMetaPills(),
+                        if (_batches.isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          Text(
+                            'PILIH BATCH',
+                            style: GoogleFonts.manrope(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: DetailColors.muted,
+                              letterSpacing: 0.8,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        for (int i = 0; i < _batches.length; i++)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: _buildBatchCard(i, _batches[i]),
-                          ),
+                          const SizedBox(height: 10),
+                          for (int i = 0; i < _batches.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _buildBatchCard(i, _batches[i]),
+                            ),
+                        ],
                       ],
                     ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: const StatsRow(pills: [
-                      StatPill(
-                        icon: Icons.emoji_events_rounded,
-                        value: '92%',
-                        label: 'Finalis Lomba',
-                        iconColor: DetailColors.navy,
-                        iconBg: Color(0x14001261),
-                      ),
-                      StatPill(
-                        icon: Icons.groups_rounded,
-                        value: '320+',
-                        label: 'Alumni',
-                        iconColor: DetailColors.navy,
-                        iconBg: Color(0x14001261),
-                      ),
-                      StatPill(
-                        icon: Icons.bolt_rounded,
-                        value: '4.9★',
-                        label: 'Rating',
-                        iconColor: DetailColors.navy,
-                        iconBg: Color(0x14001261),
-                      ),
-                    ]),
+                    child: _buildStats(),
                   ),
                   const SizedBox(height: 18),
                   Padding(
@@ -259,8 +231,54 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
     );
   }
 
-  Widget _buildBatchCard(int idx, _Batch batch) {
+  Widget _buildMetaPills() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (_duration.isNotEmpty)
+          DetailMetaPill(icon: Icons.calendar_today_rounded, text: _duration),
+        DetailMetaPill(
+            icon: Icons.groups_rounded, text: '$_studentsLabel alumni'),
+        if (_itemCount > 0)
+          DetailMetaPill(
+              icon: Icons.videocam_rounded, text: '$_itemCount live session'),
+      ],
+    );
+  }
+
+  Widget _buildStats() {
+    return StatsRow(pills: [
+      // Kiri & tengah: fakta produk yang memang statis.
+      const StatPill(
+        icon: Icons.videocam_rounded,
+        value: 'Live',
+        label: 'Format',
+        iconColor: DetailColors.navy,
+        iconBg: Color(0x14001261),
+      ),
+      const StatPill(
+        icon: Icons.person_rounded,
+        value: '1-on-1',
+        label: 'Mentoring',
+        iconColor: DetailColors.navy,
+        iconBg: Color(0x14001261),
+      ),
+      // Kanan: dinamis dari rata-rata rating semua user.
+      StatPill(
+        icon: Icons.bolt_rounded,
+        value: _ratingStat,
+        label: 'Rating',
+        iconColor: DetailColors.navy,
+        iconBg: const Color(0x14001261),
+      ),
+    ]);
+  }
+
+  Widget _buildBatchCard(int idx, Map<String, dynamic> batch) {
     final selected = idx == _selectedBatch;
+    final status = (batch['status'] ?? 'open').toString();
+    final spots = _asInt(batch['spots']);
     return InkWell(
       onTap: () => setState(() => _selectedBatch = idx),
       borderRadius: BorderRadius.circular(14),
@@ -282,7 +300,7 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    batch.label,
+                    (batch['label'] ?? '-').toString(),
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -291,7 +309,7 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    batch.date,
+                    (batch['date_range'] ?? '').toString(),
                     style: GoogleFonts.manrope(
                       fontSize: 12,
                       color: DetailColors.muted,
@@ -308,19 +326,19 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 9, vertical: 3),
                   decoration: BoxDecoration(
-                    color: batch.status == 'open'
+                    color: status == 'open'
                         ? const Color(0x14DC2626)
                         : DetailColors.surface,
                     borderRadius: BorderRadius.circular(7),
                   ),
                   child: Text(
-                    batch.status == 'open'
-                        ? 'Sisa ${batch.spots} kursi'
-                        : 'Segera Buka',
+                    status == 'open'
+                        ? 'Sisa $spots kursi'
+                        : (status == 'closed' ? 'Ditutup' : 'Segera Buka'),
                     style: GoogleFonts.manrope(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: batch.status == 'open'
+                      color: status == 'open'
                           ? DetailColors.red
                           : DetailColors.muted,
                     ),
@@ -382,7 +400,7 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
             height: 140,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: DetailColors.yellow.withOpacity(0.08),
+              color: DetailColors.yellow.withValues(alpha: 0.08),
             ),
           ),
         ),
@@ -404,10 +422,10 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
                       width: 36,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
+                        color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                            color: Colors.white.withOpacity(0.15)),
+                            color: Colors.white.withValues(alpha: 0.15)),
                       ),
                       alignment: Alignment.bottomCenter,
                       padding: const EdgeInsets.only(bottom: 4),
@@ -416,7 +434,7 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
                         height: h,
                         decoration: BoxDecoration(
                           color: DetailColors.yellow
-                              .withOpacity(0.2 + (i + 1) * 0.18),
+                              .withValues(alpha: 0.2 + (i + 1) * 0.18),
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
@@ -429,7 +447,7 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
                   style: GoogleFonts.manrope(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white.withOpacity(0.55),
+                    color: Colors.white.withValues(alpha: 0.55),
                     letterSpacing: 1.0,
                   ),
                 ),
@@ -453,9 +471,9 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(7),
-                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                 ),
                 child: Text(
                   '⚡ INTENSIF',
@@ -470,8 +488,6 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
             ],
           ),
         ),
-        Container(
-            height: 220, color: Colors.transparent, width: double.infinity),
       ],
     );
   }
@@ -495,73 +511,98 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Program bootcamp intensif 30 hari yang dirancang untuk membawa '
-            'kamu dari nol hingga siap memenangkan lomba business plan '
-            'tingkat nasional. Dengan metode learning-by-doing, setiap '
-            'minggu kamu akan mengerjakan proyek nyata dengan bimbingan '
-            'langsung dari mentor.',
+            _description.isNotEmpty
+                ? _description
+                : (_loadingDetail
+                    ? 'Memuat deskripsi…'
+                    : 'Deskripsi belum tersedia.'),
             style: GoogleFonts.manrope(
               fontSize: 13,
               color: DetailColors.muted,
               height: 1.7,
             ),
           ),
-          const SizedBox(height: 20),
-          const DetailSectionTitle('Termasuk dalam bootcamp'),
-          Column(
-            children: _includes
-                .map((h) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: HighlightRow(
-                        icon: h.$1,
-                        text: h.$2,
-                        iconColor: DetailColors.navy,
-                        iconBg: const Color(0x14001261),
-                      ),
-                    ))
-                .toList(),
-          ),
+          if (_includes.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const DetailSectionTitle('Termasuk dalam bootcamp'),
+            Column(
+              children: _includes
+                  .map((h) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: HighlightRow(
+                          icon: detailIconFor(h['icon']?.toString()),
+                          text: (h['text'] ?? '').toString(),
+                          iconColor: DetailColors.navy,
+                          iconBg: const Color(0x14001261),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildKurikulum() {
+    final sections = _sections;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '4 minggu · 16 live session',
+            '${sections.length} bagian · $_itemCount sesi',
             style: GoogleFonts.manrope(
               fontSize: 12,
               color: DetailColors.muted,
             ),
           ),
           const SizedBox(height: 12),
-          for (int i = 0; i < _weeks.length; i++)
+          if (sections.isEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: CollapsibleSection(
-                numberLabel: (i + 1).toString(),
-                title: '${_weeks[i].week} · ${_weeks[i].title}',
-                subtitle: '${_weeks[i].items.length} sesi',
-                initiallyOpen: i == 0,
-                activeColor: DetailColors.navy,
-                activeBg: const Color(0x0A001261),
-                children: [
-                  for (int j = 0; j < _weeks[i].items.length; j++)
-                    CurriculumItem(
-                      title: _weeks[i].items[j],
-                      duration: 'Live',
-                      icon: Icons.videocam_rounded,
-                      iconColor: DetailColors.navy,
-                      iconBg: const Color(0x14001261),
-                      showBorder: j < _weeks[i].items.length - 1,
-                    ),
-                ],
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                _loadingDetail
+                    ? 'Memuat kurikulum…'
+                    : 'Kurikulum belum tersedia.',
+                style: GoogleFonts.manrope(
+                    fontSize: 13, color: DetailColors.muted),
               ),
+            ),
+          for (int i = 0; i < sections.length; i++)
+            _buildSectionTile(i, sections[i]),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTile(int i, Map<String, dynamic> section) {
+    final items = detailMapList(section['items']);
+    final subtitle =
+        (section['subtitle']?.toString().isNotEmpty ?? false)
+            ? section['subtitle'].toString()
+            : '${items.length} sesi';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: CollapsibleSection(
+        numberLabel: (i + 1).toString(),
+        title: (section['title'] ?? '-').toString(),
+        subtitle: subtitle,
+        initiallyOpen: i == 0,
+        activeColor: DetailColors.navy,
+        activeBg: const Color(0x0A001261),
+        children: [
+          for (int j = 0; j < items.length; j++)
+            CurriculumItem(
+              title: (items[j]['title'] ?? '-').toString(),
+              duration: (items[j]['duration']?.toString().isNotEmpty ?? false)
+                  ? items[j]['duration'].toString()
+                  : 'Live',
+              icon: Icons.videocam_rounded,
+              iconColor: DetailColors.navy,
+              iconBg: const Color(0x14001261),
+              showBorder: j < items.length - 1,
             ),
         ],
       ),
@@ -574,19 +615,4 @@ class _DetailBootcampScreenState extends State<DetailBootcampScreen> {
       barColor: DetailColors.navy,
     );
   }
-}
-
-class _Batch {
-  final String label;
-  final String date;
-  final int spots;
-  final String status;
-  const _Batch(this.label, this.date, this.spots, this.status);
-}
-
-class _Week {
-  final String week;
-  final String title;
-  final List<String> items;
-  const _Week(this.week, this.title, this.items);
 }

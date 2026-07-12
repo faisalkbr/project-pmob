@@ -2,6 +2,7 @@
 // FILE: lib/widgets/mentoring_card.dart
 // ============================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -36,7 +37,7 @@ class MentoringCard extends StatelessWidget {
         border: Border.all(color: _border),
         boxShadow: [
           BoxShadow(
-            color: _navy.withOpacity(0.06),
+            color: _navy.withValues(alpha: 0.06),
             blurRadius: 16,
             offset: const Offset(0, 2),
           ),
@@ -119,7 +120,7 @@ class MentoringCard extends StatelessWidget {
   }
 
   Widget _buildAvatar() {
-    final hasImage = (mentor.avatarUrl ?? '').isNotEmpty;
+    final url = mentor.resolvedAvatar;
     return Container(
       width: 52,
       height: 52,
@@ -133,11 +134,13 @@ class MentoringCard extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       alignment: Alignment.center,
-      child: hasImage
-          ? Image.network(
-              mentor.avatarUrl!,
+      child: url.isNotEmpty
+          ? CachedNetworkImage(
+              imageUrl: url,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _initialsText(),
+              width: 52,
+              height: 52,
+              errorWidget: (_, __, ___) => _initialsText(),
             )
           : _initialsText(),
     );
@@ -157,8 +160,8 @@ class MentoringCard extends StatelessWidget {
   Widget _buildAvailabilityChip() {
     final color = mentor.available ? _green : _muted;
     final bg = mentor.available
-        ? _green.withOpacity(0.1)
-        : _muted.withOpacity(0.1);
+        ? _green.withValues(alpha: 0.1)
+        : _muted.withValues(alpha: 0.1);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(

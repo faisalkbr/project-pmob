@@ -7,11 +7,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/product_model.dart';
+import '../../services/product_service.dart';
 import '../../viewmodels/cart_viewmodel.dart';
 import '../../viewmodels/transaction_viewmodel.dart';
 import '../../widgets/detail_widgets.dart';
 import '../../widgets/review_section.dart';
 import '../cart_screen.dart';
+import '../learning/learning_content_screen.dart';
+import 'detail_data_helpers.dart';
 
 class DetailKelasScreen extends StatefulWidget {
   const DetailKelasScreen({super.key, required this.product});
@@ -68,91 +71,79 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
   }
 
   void _onAccessContent() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Kamu sudah memiliki akses ke ${widget.product.title}',
-                style: GoogleFonts.manrope(fontSize: 13),
-                maxLines: 2,
-              ),
-            ),
-          ],
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LearningContentScreen(
+          productId: widget.product.id,
+          productTitle: widget.product.title,
+          productType: widget.product.type.apiValue,
         ),
-        backgroundColor: const Color(0xFF16A34A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
   static const List<String> _tabs = ['Deskripsi', 'Kurikulum', 'Ulasan'];
 
-  // Dummy data — di production diambil dari endpoint /products/{id}/curriculum
-  static const _curriculum = [
-    _Section(
-      title: 'Fondasi Business Case',
-      lessons: '4 materi',
-      items: [
-        _Item('Apa itu Business Case Competition?', '8 mnt', isVideo: true),
-        _Item('Framework Analisis: SWOT & PESTLE', '14 mnt', isVideo: true),
-        _Item('Modul Pendahuluan (PDF)', '12 hal', isVideo: false),
-        _Item('Quiz Fondasi', '10 soal', isVideo: false),
-      ],
-    ),
-    _Section(
-      title: 'Riset & Analisis Data',
-      lessons: '5 materi',
-      items: [
-        _Item('Metode Riset Cepat untuk Lomba', '18 mnt', isVideo: true),
-        _Item('Mengolah Data dengan Storytelling', '22 mnt', isVideo: true),
-        _Item('Template Riset Lomba', '8 hal', isVideo: false),
-        _Item('Studi Kasus: FMCG Industry', '15 mnt', isVideo: true),
-        _Item('Latihan Analisis Mandiri', '5 soal', isVideo: false),
-      ],
-    ),
-    _Section(
-      title: 'Membangun Solusi & Pitch',
-      lessons: '4 materi',
-      items: [
-        _Item('Struktur Solusi yang Memenangkan Juri', '20 mnt', isVideo: true),
-        _Item('Cara Membuat Pitch yang Berkesan', '25 mnt', isVideo: true),
-        _Item('Template Slide Presentasi', '15 hal', isVideo: false),
-        _Item('Mock Pitch Session', '30 mnt', isVideo: true),
-      ],
-    ),
-    _Section(
-      title: 'Simulasi Lomba & Q&A',
-      lessons: '3 materi',
-      items: [
-        _Item('Simulasi Full Case Competition', '45 mnt', isVideo: true),
-        _Item('Teknik Menjawab Pertanyaan Juri', '18 mnt', isVideo: true),
-        _Item('Bank Soal Latihan (50 kasus)', '50 kasus', isVideo: false),
-      ],
-    ),
-  ];
+  final _productService = ProductService();
+  Map<String, dynamic>? _detail;
+  bool _loadingDetail = true;
 
-  static const _learnings = [
-    'Analisis kasus dengan framework profesional',
-    'Membangun solusi yang memenangkan juri',
-    'Teknik riset dan storytelling data',
-    'Pitch presentasi yang memukau',
-    'Manajemen waktu saat kompetisi',
-    'Strategi Q&A menghadapi juri',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadDetail();
+  }
 
-  static const _highlights = [
-    (Icons.videocam_rounded, '16 video materi (8+ jam total)'),
-    (Icons.description_rounded, '12 modul PDF + template siap pakai'),
-    (Icons.emoji_events_rounded, 'Studi kasus dari lomba nasional nyata'),
-    (Icons.bolt_rounded, 'Akses seumur hidup + update gratis'),
-    (Icons.groups_rounded, 'Komunitas alumni eksklusif'),
-    (Icons.verified_rounded, 'Sertifikat penyelesaian resmi'),
-  ];
+  Future<void> _loadDetail() async {
+    try {
+      final data = await _productService.fetchProductDetail(widget.product.id);
+      if (mounted) setState(() => _detail = data);
+    } catch (_) {
+      // UI tetap pakai data dasar dari widget.product.
+    } finally {
+      if (mounted) setState(() => _loadingDetail = false);
+    }
+  }
+
+  // ── Helper data (real dari API, fallback ke nilai dasar) ────────────────
+  int _asInt(dynamic v) => v is int ? v : int.tryParse('${v ?? ''}') ?? 0;
+
+  int get _students =>
+      _detail?['students'] is int ? _detail!['students'] as int : widget.product.students;
+  double get _rating {
+    final v = _detail?['rating'];
+    return v is num ? v.toDouble() : widget.product.rating;
+  }
+
+  // Rating dinamis dari rata-rata seluruh review user (endpoint show).
+  int get _totalReviews => _asInt(_detail?['total_reviews']);
+  double get _ratingAvg {
+    final v = _detail?['rating_avg'];
+    return v is num ? v.toDouble() : 0;
+  }
+
+  String get _ratingStat =>
+      _totalReviews > 0 ? '${_ratingAvg.toStringAsFixed(1)}★' : 'Baru';
+
+  String get _duration {
+    final v = (_detail?['duration'] ?? widget.product.duration).toString();
+    return v;
+  }
+
+  String get _description => (_detail?['description'] ?? '').toString();
+  List<String> get _learnings => detailStringList(_detail?['learnings']);
+  List<Map<String, dynamic>> get _includes => detailMapList(_detail?['includes']);
+  List<Map<String, dynamic>> get _sections =>
+      detailMapList(_detail?['curriculum_sections']);
+  Map<String, dynamic>? get _author => _detail?['author'] is Map
+      ? Map<String, dynamic>.from(_detail!['author'] as Map)
+      : null;
+
+  String get _studentsLabel =>
+      _students >= 1000 ? '${(_students / 1000).toStringAsFixed(1)}k+' : '$_students+';
+
+  int get _itemCount =>
+      _sections.fold(0, (sum, s) => sum + detailMapList(s['items']).length);
 
   @override
   Widget build(BuildContext context) {
@@ -182,53 +173,19 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
                         ),
                         const SizedBox(height: 10),
                         StarRatingRow(
-                          rating: widget.product.rating,
-                          count: '${widget.product.students} ulasan',
+                          rating: _rating,
+                          count: '$_students siswa',
                         ),
                         const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: const [
-                            DetailMetaPill(
-                                icon: Icons.groups_rounded, text: '1.2k+ siswa'),
-                            DetailMetaPill(
-                                icon: Icons.access_time_rounded,
-                                text: '8+ jam materi'),
-                            DetailMetaPill(
-                                icon: Icons.menu_book_rounded, text: '16 modul'),
-                          ],
-                        ),
+                        _buildMetaPills(),
                         const SizedBox(height: 16),
-                        const AuthorMiniCard(
-                          label: 'Dibuat oleh',
-                          name: 'Rizka Nabilah',
-                          subtitle: '3× Juara Case Competition Nasional',
-                          initials: 'RN',
-                          gradient: [Color(0xFFA600B2), Color(0xFF6B0075)],
-                        ),
+                        _buildAuthor(),
                       ],
                     ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: const StatsRow(pills: [
-                      StatPill(
-                        icon: Icons.emoji_events_rounded,
-                        value: '87%',
-                        label: 'Tingkat Menang',
-                      ),
-                      StatPill(
-                        icon: Icons.groups_rounded,
-                        value: '1.2k+',
-                        label: 'Alumni',
-                      ),
-                      StatPill(
-                        icon: Icons.bolt_rounded,
-                        value: '4.9★',
-                        label: 'Rating',
-                      ),
-                    ]),
+                    child: _buildStats(),
                   ),
                   const SizedBox(height: 18),
                   Padding(
@@ -290,7 +247,7 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
             height: 160,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: DetailColors.purple.withOpacity(0.2),
+              color: DetailColors.purple.withValues(alpha: 0.2),
             ),
           ),
         ),
@@ -303,7 +260,7 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
             child: Icon(
               Icons.menu_book_rounded,
               size: 88,
-              color: Colors.white.withOpacity(0.12),
+              color: Colors.white.withValues(alpha: 0.12),
             ),
           ),
         ),
@@ -318,9 +275,9 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
               height: 52,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.18),
+                color: Colors.white.withValues(alpha: 0.18),
                 border:
-                    Border.all(color: Colors.white.withOpacity(0.4), width: 2),
+                    Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
               ),
               child: const Icon(Icons.play_arrow_rounded,
                   size: 28, color: Colors.white),
@@ -344,7 +301,7 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
               if (widget.product.isFeatured || widget.product.isBestseller)
                 HeroBadge(
                   label: '🔥 TERPOPULER',
-                  background: DetailColors.purple.withOpacity(0.7),
+                  background: DetailColors.purple.withValues(alpha: 0.7),
                   foreground: Colors.white,
                 ),
             ],
@@ -366,11 +323,59 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
             ),
           ),
         ),
-        // Spacer to define height
-        Container(
-            height: 220, color: Colors.transparent, width: double.infinity),
       ],
     );
+  }
+
+  Widget _buildMetaPills() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        DetailMetaPill(
+            icon: Icons.groups_rounded, text: '$_studentsLabel siswa'),
+        if (_duration.isNotEmpty)
+          DetailMetaPill(icon: Icons.access_time_rounded, text: _duration),
+        if (_itemCount > 0)
+          DetailMetaPill(
+              icon: Icons.menu_book_rounded, text: '$_itemCount materi'),
+      ],
+    );
+  }
+
+  Widget _buildAuthor() {
+    final author = _author;
+    if (author == null) return const SizedBox.shrink();
+    final name = (author['name'] ?? '-').toString();
+    return AuthorMiniCard(
+      label: 'Dibuat oleh',
+      name: name,
+      subtitle: (author['title'] ?? '').toString(),
+      initials: detailInitialsOf(name),
+      gradient: const [Color(0xFFA600B2), Color(0xFF6B0075)],
+    );
+  }
+
+  Widget _buildStats() {
+    return StatsRow(pills: [
+      // Kiri & tengah: fakta produk yang memang statis.
+      const StatPill(
+        icon: Icons.play_circle_fill_rounded,
+        value: 'Online',
+        label: 'Format',
+      ),
+      const StatPill(
+        icon: Icons.all_inclusive_rounded,
+        value: 'Selamanya',
+        label: 'Akses',
+      ),
+      // Kanan: dinamis dari rata-rata rating semua user.
+      StatPill(
+        icon: Icons.bolt_rounded,
+        value: _ratingStat,
+        label: 'Rating',
+      ),
+    ]);
   }
 
   Widget _buildTabContent() {
@@ -392,16 +397,18 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Kelas ini dirancang khusus untuk mahasiswa yang ingin '
-            'memenangkan lomba business case tingkat nasional dan '
-            'internasional. Dipandu langsung oleh mentor berpengalaman '
-            'yang telah memenangkan 3 kompetisi bergengsi.',
+            _description.isNotEmpty
+                ? _description
+                : (_loadingDetail
+                    ? 'Memuat deskripsi…'
+                    : 'Deskripsi belum tersedia.'),
             style: GoogleFonts.manrope(
               fontSize: 13,
               color: DetailColors.muted,
               height: 1.7,
             ),
           ),
+          if (_learnings.isNotEmpty) ...[
           const SizedBox(height: 20),
           const DetailSectionTitle('Yang akan kamu pelajari'),
           Container(
@@ -451,29 +458,37 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          const DetailSectionTitle('Termasuk dalam kelas ini'),
-          Column(
-            children: _highlights
-                .map((h) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: HighlightRow(icon: h.$1, text: h.$2),
-                    ))
-                .toList(),
-          ),
+          ],
+          if (_includes.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const DetailSectionTitle('Termasuk dalam kelas ini'),
+            Column(
+              children: _includes
+                  .map((h) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: HighlightRow(
+                          icon: detailIconFor(h['icon']?.toString()),
+                          text: (h['text'] ?? '').toString(),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildKurikulum() {
+    final sections = _sections;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '4 bagian · 16 materi · 8+ jam',
+            '${sections.length} bagian · $_itemCount materi'
+            '${_duration.isNotEmpty ? ' · $_duration' : ''}',
             style: GoogleFonts.manrope(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -481,57 +496,58 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          for (int i = 0; i < _curriculum.length; i++)
+          if (sections.isEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: CollapsibleSection(
-                numberLabel: (i + 1).toString().padLeft(2, '0'),
-                title: _curriculum[i].title,
-                subtitle: _curriculum[i].lessons,
-                initiallyOpen: i == 0,
-                children: [
-                  for (int j = 0; j < _curriculum[i].items.length; j++)
-                    CurriculumItem(
-                      title: _curriculum[i].items[j].title,
-                      duration: _curriculum[i].items[j].duration,
-                      icon: _curriculum[i].items[j].isVideo
-                          ? Icons.play_arrow_rounded
-                          : Icons.description_rounded,
-                      iconColor: _curriculum[i].items[j].isVideo
-                          ? DetailColors.blue
-                          : DetailColors.purple,
-                      iconBg: _curriculum[i].items[j].isVideo
-                          ? const Color(0x140033A6)
-                          : DetailColors.purpleFaint,
-                      showBorder: j < _curriculum[i].items.length - 1,
-                    ),
-                ],
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                _loadingDetail
+                    ? 'Memuat kurikulum…'
+                    : 'Kurikulum belum tersedia.',
+                style: GoogleFonts.manrope(
+                    fontSize: 13, color: DetailColors.muted),
               ),
             ),
+          for (int i = 0; i < sections.length; i++)
+            _buildSectionTile(i, sections[i]),
         ],
       ),
+    );
+  }
+
+  Widget _buildSectionTile(int i, Map<String, dynamic> section) {
+    final items = detailMapList(section['items']);
+    final subtitle =
+        (section['subtitle']?.toString().isNotEmpty ?? false)
+            ? section['subtitle'].toString()
+            : '${items.length} materi';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: CollapsibleSection(
+        numberLabel: (i + 1).toString().padLeft(2, '0'),
+        title: (section['title'] ?? '-').toString(),
+        subtitle: subtitle,
+        initiallyOpen: i == 0,
+        children: [
+          for (int j = 0; j < items.length; j++)
+            _buildCurriculumItemRow(items[j], j < items.length - 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCurriculumItemRow(Map<String, dynamic> item, bool showBorder) {
+    final isVideo = (item['type']?.toString().toLowerCase() == 'video');
+    return CurriculumItem(
+      title: (item['title'] ?? '-').toString(),
+      duration: (item['duration'] ?? '').toString(),
+      icon: isVideo ? Icons.play_arrow_rounded : Icons.description_rounded,
+      iconColor: isVideo ? DetailColors.blue : DetailColors.purple,
+      iconBg: isVideo ? const Color(0x140033A6) : DetailColors.purpleFaint,
+      showBorder: showBorder,
     );
   }
 
   Widget _buildUlasan() {
     return ReviewSection(productId: widget.product.id);
   }
-}
-
-class _Section {
-  final String title;
-  final String lessons;
-  final List<_Item> items;
-  const _Section({
-    required this.title,
-    required this.lessons,
-    required this.items,
-  });
-}
-
-class _Item {
-  final String title;
-  final String duration;
-  final bool isVideo;
-  const _Item(this.title, this.duration, {required this.isVideo});
 }

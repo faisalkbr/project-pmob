@@ -2,6 +2,7 @@
 // FILE: lib/views/dashboard_screen/dashboard_screen.dart
 // ============================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -45,6 +46,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardViewModel>().loadUserName();
+      context.read<AuthViewModel>().hydrate();
       // Pre-load data dari section produk & lomba supaya saat user pindah tab
       // datanya sudah siap.
       context.read<ProductViewModel>().init();
@@ -667,7 +669,7 @@ class _DashboardCompetitionCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _CompImage(url: competition.imageUrl),
+                _CompImage(url: competition.resolvedImage),
                 // Gradient overlay
                 DecoratedBox(
                   decoration: BoxDecoration(
@@ -800,12 +802,11 @@ class _CompImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (url.isEmpty) return _placeholder();
-    return Image.network(
-      url,
+    return CachedNetworkImage(
+      imageUrl: url,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _placeholder(),
-      loadingBuilder: (_, child, prog) =>
-          prog == null ? child : _placeholder(),
+      placeholder: (_, __) => _placeholder(),
+      errorWidget: (_, __, ___) => _placeholder(),
     );
   }
 

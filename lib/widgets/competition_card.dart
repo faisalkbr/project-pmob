@@ -2,6 +2,7 @@
 // FILE: lib/widgets/competition_card.dart
 // ============================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../config/app_theme.dart';
@@ -32,7 +33,7 @@ class CompetitionCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -95,7 +96,7 @@ class CompetitionCard extends StatelessWidget {
             children: [
               Hero(
                 tag: 'competition-image-${competition.id}',
-                child: _NetworkCover(url: competition.imageUrl),
+                child: _NetworkCover(url: competition.resolvedImage),
               ),
               Positioned(
                 top: 12,
@@ -125,7 +126,7 @@ class CompetitionCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.45),
+                    color: Colors.black.withValues(alpha: 0.45),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -156,7 +157,7 @@ class CompetitionCard extends StatelessWidget {
             text,
             style: GoogleFonts.poppins(
               fontSize: 12,
-              color: AppColors.textPrimary.withOpacity(0.75),
+              color: AppColors.textPrimary.withValues(alpha: 0.75),
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -249,25 +250,22 @@ class _NetworkCover extends StatelessWidget {
   Widget build(BuildContext context) {
     if (url.isEmpty) return _placeholder();
 
-    return Image.network(
-      url,
+    return CachedNetworkImage(
+      imageUrl: url,
       fit: BoxFit.cover,
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
-        return Container(
-          color: Colors.grey.shade200,
-          alignment: Alignment.center,
-          child: const SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.secondary,
-            ),
+      placeholder: (context, _) => Container(
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.secondary,
           ),
-        );
-      },
-      errorBuilder: (_, __, ___) => _placeholder(),
+        ),
+      ),
+      errorWidget: (_, __, ___) => _placeholder(),
     );
   }
 

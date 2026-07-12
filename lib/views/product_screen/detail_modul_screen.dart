@@ -7,11 +7,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/product_model.dart';
+import '../../services/product_service.dart';
+import 'detail_data_helpers.dart';
 import '../../viewmodels/cart_viewmodel.dart';
 import '../../viewmodels/transaction_viewmodel.dart';
 import '../../widgets/detail_widgets.dart';
 import '../../widgets/review_section.dart';
 import '../cart_screen.dart';
+import '../learning/learning_content_screen.dart';
 
 class DetailModulScreen extends StatefulWidget {
   const DetailModulScreen({super.key, required this.product});
@@ -26,6 +29,86 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
   bool _addingToCart = false;
 
   static const _tabs = ['Deskripsi', 'Daftar Isi', 'Ulasan'];
+
+  final _productService = ProductService();
+  Map<String, dynamic>? _detail;
+  bool _loadingDetail = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDetail();
+  }
+
+  Future<void> _loadDetail() async {
+    try {
+      final data = await _productService.fetchProductDetail(widget.product.id);
+      if (mounted) setState(() => _detail = data);
+    } catch (_) {
+      // Diamkan: UI tetap pakai data dasar dari widget.product.
+    } finally {
+      if (mounted) setState(() => _loadingDetail = false);
+    }
+  }
+
+  // ── Helper data (real dari API, fallback ke nilai dasar) ────────────────
+  int get _totalPages {
+    final v = _detail?['total_pages'];
+    if (v is int) return v;
+    return int.tryParse('${v ?? ''}') ?? 0;
+  }
+
+  int get _students => _detail?['students'] is int
+      ? _detail!['students'] as int
+      : widget.product.students;
+
+  double get _rating {
+    final v = _detail?['rating'];
+    if (v is num) return v.toDouble();
+    return widget.product.rating;
+  }
+
+  // Rating dinamis dari rata-rata seluruh review user (endpoint show).
+  int get _totalReviews {
+    final v = _detail?['total_reviews'];
+    return v is int ? v : int.tryParse('${v ?? ''}') ?? 0;
+  }
+
+  double get _ratingAvg {
+    final v = _detail?['rating_avg'];
+    return v is num ? v.toDouble() : 0;
+  }
+
+  String get _ratingStat =>
+      _totalReviews > 0 ? '${_ratingAvg.toStringAsFixed(1)}★' : 'Baru';
+
+  String get _description => (_detail?['description'] ?? '').toString();
+
+  List<Map<String, dynamic>> get _includesData =>
+      (_detail?['includes'] is List)
+          ? (_detail!['includes'] as List)
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList()
+          : const [];
+
+  List<Map<String, dynamic>> get _chapters => (_detail?['chapters'] is List)
+      ? (_detail!['chapters'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList()
+      : const [];
+
+  Map<String, dynamic>? get _author =>
+      _detail?['author'] is Map ? Map<String, dynamic>.from(_detail!['author'] as Map) : null;
+
+  Map<String, dynamic>? get _freeChapter {
+    for (final c in _chapters) {
+      if (c['is_free'] == true || c['is_free'] == 1) return c;
+    }
+    return null;
+  }
+
 
   Future<void> _addToCart() async {
     if (_addingToCart) return;
@@ -69,45 +152,16 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
   }
 
   void _onAccessContent() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Kamu sudah memiliki akses ke ${widget.product.title}',
-                style: GoogleFonts.manrope(fontSize: 13),
-                maxLines: 2,
-              ),
-            ),
-          ],
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LearningContentScreen(
+          productId: widget.product.id,
+          productTitle: widget.product.title,
+          productType: widget.product.type.apiValue,
         ),
-        backgroundColor: const Color(0xFF16A34A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
-
-  static const _toc = [
-    ('01', 'Pengantar Dunia Debat Kompetitif', '1–18'),
-    ('02', 'Struktur Argumen yang Memenangkan Juri', '19–42'),
-    ('03', 'Teknik Riset Kilat untuk Debat', '43–62'),
-    ('04', 'Rebuttal & Cross-Examination', '63–84'),
-    ('05', 'Manajemen Waktu & Strategi Tim', '85–102'),
-    ('06', 'Studi Kasus: Lomba Debat Nasional', '103–128'),
-    ('07', 'Template & Lembar Persiapan', '129–145'),
-  ];
-
-  static const _includes = [
-    (Icons.description_rounded, '145 halaman PDF berkualitas tinggi'),
-    (Icons.download_rounded, 'Download sekali, akses selamanya'),
-    (Icons.menu_book_rounded, '7 bab + 3 bonus template siap pakai'),
-    (Icons.emoji_events_rounded, 'Studi kasus lomba debat nyata'),
-    (Icons.verified_rounded, 'Sertifikat digital setelah selesai'),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -137,54 +191,19 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
                         ),
                         const SizedBox(height: 10),
                         StarRatingRow(
-                          rating: widget.product.rating,
-                          count: '${widget.product.students} ulasan',
+                          rating: _rating,
+                          count: '$_students pembaca',
                         ),
                         const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: const [
-                            DetailMetaPill(
-                                icon: Icons.description_rounded,
-                                text: '145 halaman'),
-                            DetailMetaPill(
-                                icon: Icons.menu_book_rounded, text: '7 bab'),
-                            DetailMetaPill(
-                                icon: Icons.download_rounded,
-                                text: 'Download PDF'),
-                          ],
-                        ),
+                        _buildMetaPills(),
                         const SizedBox(height: 16),
-                        const AuthorMiniCard(
-                          label: 'Ditulis oleh',
-                          name: 'Kartika Ayu',
-                          subtitle: 'Juara 1 Debat Nasional 2024',
-                          initials: 'KA',
-                          gradient: [Color(0xFFA600B2), Color(0xFF6B0075)],
-                        ),
+                        _buildAuthor(),
                       ],
                     ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: const StatsRow(pills: [
-                      StatPill(
-                        icon: Icons.description_rounded,
-                        value: '145',
-                        label: 'Halaman',
-                      ),
-                      StatPill(
-                        icon: Icons.groups_rounded,
-                        value: '800+',
-                        label: 'Pembaca',
-                      ),
-                      StatPill(
-                        icon: Icons.star_rounded,
-                        value: '4.8★',
-                        label: 'Rating',
-                      ),
-                    ]),
+                    child: _buildStats(),
                   ),
                   const SizedBox(height: 18),
                   Padding(
@@ -248,7 +267,7 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
             height: 140,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.07),
+              color: Colors.white.withValues(alpha: 0.07),
             ),
           ),
         ),
@@ -275,10 +294,10 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
                     width: 68,
                     height: 88,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.35),
+                        color: Colors.white.withValues(alpha: 0.35),
                         width: 1.5,
                       ),
                     ),
@@ -291,13 +310,13 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
                         Container(
                           width: 36,
                           height: 2,
-                          color: Colors.white.withOpacity(0.6),
+                          color: Colors.white.withValues(alpha: 0.6),
                         ),
                         const SizedBox(height: 4),
                         Container(
                           width: 28,
                           height: 2,
-                          color: Colors.white.withOpacity(0.35),
+                          color: Colors.white.withValues(alpha: 0.35),
                         ),
                       ],
                     ),
@@ -317,8 +336,6 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
           left: 16,
           child: const HeroBadge(label: 'MODUL PDF'),
         ),
-        Container(
-            height: 220, color: Colors.transparent, width: double.infinity),
       ],
     );
   }
@@ -328,14 +345,67 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
       width: w,
       height: h,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(opacity),
+        color: Colors.white.withValues(alpha: opacity),
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(6),
           bottom: Radius.circular(3),
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
     );
+  }
+
+  Widget _buildMetaPills() {
+    final pages = _totalPages;
+    final chapters = _chapters.length;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        DetailMetaPill(
+            icon: Icons.description_rounded,
+            text: pages > 0 ? '$pages halaman' : 'PDF'),
+        if (chapters > 0)
+          DetailMetaPill(icon: Icons.menu_book_rounded, text: '$chapters bab'),
+        const DetailMetaPill(
+            icon: Icons.download_rounded, text: 'Download PDF'),
+      ],
+    );
+  }
+
+  Widget _buildAuthor() {
+    final author = _author;
+    if (author == null) return const SizedBox.shrink();
+    final name = (author['name'] ?? '-').toString();
+    return AuthorMiniCard(
+      label: 'Ditulis oleh',
+      name: name,
+      subtitle: (author['title'] ?? '').toString(),
+      initials: detailInitialsOf(name),
+      gradient: const [Color(0xFFA600B2), Color(0xFF6B0075)],
+    );
+  }
+
+  Widget _buildStats() {
+    return StatsRow(pills: [
+      // Kiri & tengah: fakta produk yang memang statis.
+      const StatPill(
+        icon: Icons.picture_as_pdf_rounded,
+        value: 'PDF',
+        label: 'Format',
+      ),
+      const StatPill(
+        icon: Icons.all_inclusive_rounded,
+        value: 'Selamanya',
+        label: 'Akses',
+      ),
+      // Kanan: dinamis dari rata-rata rating semua user.
+      StatPill(
+        icon: Icons.star_rounded,
+        value: _ratingStat,
+        label: 'Rating',
+      ),
+    ]);
   }
 
   Widget _buildTabContent() {
@@ -357,27 +427,33 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Modul komprehensif ini merangkum seluruh strategi yang '
-            'digunakan oleh juara-juara lomba debat nasional. Cocok untuk '
-            'persiapan individu maupun tim, dari pemula hingga advanced.',
+            _description.isNotEmpty
+                ? _description
+                : (_loadingDetail ? 'Memuat deskripsi…' : 'Deskripsi belum tersedia.'),
             style: GoogleFonts.manrope(
               fontSize: 13,
               color: DetailColors.muted,
               height: 1.7,
             ),
           ),
-          const SizedBox(height: 20),
-          const DetailSectionTitle('Termasuk dalam modul'),
-          Column(
-            children: _includes
-                .map((h) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: HighlightRow(icon: h.$1, text: h.$2),
-                    ))
-                .toList(),
-          ),
+          if (_includesData.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const DetailSectionTitle('Termasuk dalam modul'),
+            Column(
+              children: _includesData
+                  .map((h) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: HighlightRow(
+                          icon: detailIconFor(h['icon']?.toString()),
+                          text: (h['text'] ?? '').toString(),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ],
+          if (_freeChapter != null) ...[
           const SizedBox(height: 18),
-          // Preview teaser card
+          // Preview teaser card (bab gratis dari data produk)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -394,9 +470,9 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
                   width: 48,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.12),
+                    color: Colors.white.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -404,7 +480,7 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
                     style: GoogleFonts.manrope(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                     ),
                   ),
                 ),
@@ -415,7 +491,7 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Bab 1 — Gratis',
+                        'Bab ${_freeChapter!['chapter_number'] ?? '1'} — Gratis',
                         style: GoogleFonts.spaceGrotesk(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -424,10 +500,12 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Preview 18 halaman pertama',
+                        (_freeChapter!['page_range'] ?? '').toString().isNotEmpty
+                            ? 'Preview halaman ${_freeChapter!['page_range']}'
+                            : 'Preview bab pertama',
                         style: GoogleFonts.manrope(
                           fontSize: 12,
-                          color: Colors.white.withOpacity(0.65),
+                          color: Colors.white.withValues(alpha: 0.65),
                         ),
                       ),
                     ],
@@ -456,106 +534,126 @@ class _DetailModulScreenState extends State<DetailModulScreen> {
               ],
             ),
           ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildDaftarIsi() {
+    final chapters = _chapters;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '145 halaman · 7 bab utama',
+            _totalPages > 0
+                ? '$_totalPages halaman · ${chapters.length} bab utama'
+                : '${chapters.length} bab utama',
             style: GoogleFonts.manrope(
               fontSize: 12,
               color: DetailColors.muted,
             ),
           ),
           const SizedBox(height: 12),
-          for (int i = 0; i < _toc.length; i++)
+          if (chapters.isEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: DetailColors.border),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: i == 0
-                            ? DetailColors.purple
-                            : DetailColors.purpleFaint,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        _toc[i].$1,
-                        style: GoogleFonts.manrope(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: i == 0
-                              ? Colors.white
-                              : DetailColors.purple,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _toc[i].$2,
-                            style: GoogleFonts.manrope(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: DetailColors.text,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Hal. ${_toc[i].$3}',
-                            style: GoogleFonts.manrope(
-                              fontSize: 11,
-                              color: DetailColors.muted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (i == 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: DetailColors.greenFaint,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'GRATIS',
-                          style: GoogleFonts.manrope(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: DetailColors.green,
-                          ),
-                        ),
-                      ),
-                  ],
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                _loadingDetail
+                    ? 'Memuat daftar isi…'
+                    : 'Daftar isi belum tersedia.',
+                style: GoogleFonts.manrope(
+                    fontSize: 13, color: DetailColors.muted),
+              ),
+            ),
+          for (int i = 0; i < chapters.length; i++)
+            _buildChapterTile(i, chapters[i]),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChapterTile(int i, Map<String, dynamic> ch) {
+    final isFree = ch['is_free'] == true || ch['is_free'] == 1;
+    final number = (ch['chapter_number'] ?? '${i + 1}').toString();
+    final title = (ch['title'] ?? '-').toString();
+    final pageRange = (ch['page_range'] ?? '').toString();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: DetailColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isFree ? DetailColors.purple : DetailColors.purpleFaint,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                number,
+                style: GoogleFonts.manrope(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isFree ? Colors.white : DetailColors.purple,
                 ),
               ),
             ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.manrope(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: DetailColors.text,
+                    ),
+                  ),
+                  if (pageRange.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Hal. $pageRange',
+                      style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        color: DetailColors.muted,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (isFree)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: DetailColors.greenFaint,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'GRATIS',
+                  style: GoogleFonts.manrope(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: DetailColors.green,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

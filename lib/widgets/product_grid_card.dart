@@ -2,6 +2,7 @@
 // FILE: lib/widgets/product_grid_card.dart
 // ============================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -44,7 +45,7 @@ class ProductGridCard extends StatelessWidget {
             border: Border.all(color: _border),
             boxShadow: [
               BoxShadow(
-                color: _navy.withOpacity(0.06),
+                color: _navy.withValues(alpha: 0.06),
                 blurRadius: 16,
                 offset: const Offset(0, 2),
               ),
@@ -147,7 +148,8 @@ class ProductGridCard extends StatelessWidget {
   }
 
   Widget _buildThumbnail(ProductTypeStyle style) {
-    final hasImage = product.imageUrl.isNotEmpty;
+    final imageUrl = product.resolvedImage;
+    final hasImage = imageUrl.isNotEmpty;
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
       child: SizedBox(
@@ -157,12 +159,11 @@ class ProductGridCard extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (hasImage)
-              Image.network(
-                product.imageUrl,
+              CachedNetworkImage(
+                imageUrl: imageUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _gradientPlaceholder(style),
-                loadingBuilder: (_, child, prog) =>
-                    prog == null ? child : _gradientPlaceholder(style),
+                placeholder: (_, __) => _gradientPlaceholder(style),
+                errorWidget: (_, __, ___) => _gradientPlaceholder(style),
               )
             else
               _gradientPlaceholder(style),
@@ -213,7 +214,7 @@ class ProductGridCard extends StatelessWidget {
       child: Icon(
         style.icon,
         size: 36,
-        color: Colors.white.withOpacity(0.4),
+        color: Colors.white.withValues(alpha: 0.4),
       ),
     );
   }

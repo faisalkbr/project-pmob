@@ -27,7 +27,7 @@ class MentoringSectionHeader extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_navy, _navy.withOpacity(0.85)],
+          colors: [_navy, _navy.withValues(alpha: 0.85)],
         ),
       ),
       child: ClipRRect(
@@ -43,7 +43,7 @@ class MentoringSectionHeader extends StatelessWidget {
                 height: 90,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _purple.withOpacity(0.18),
+                  color: _purple.withValues(alpha: 0.18),
                 ),
               ),
             ),
@@ -67,7 +67,7 @@ class MentoringSectionHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: _liveGreen.withOpacity(0.2),
+            color: _liveGreen.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
@@ -108,7 +108,7 @@ class MentoringSectionHeader extends StatelessWidget {
           '1-on-1 dengan mentor berpengalaman',
           style: GoogleFonts.manrope(
             fontSize: 12,
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
           ),
         ),
       ],
@@ -133,7 +133,7 @@ class MentoringSectionHeader extends StatelessWidget {
           textAlign: TextAlign.right,
           style: GoogleFonts.manrope(
             fontSize: 10,
-            color: Colors.white.withOpacity(0.55),
+            color: Colors.white.withValues(alpha: 0.55),
             height: 1.3,
           ),
         ),

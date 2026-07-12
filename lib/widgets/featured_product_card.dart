@@ -40,7 +40,7 @@ class FeaturedProductCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: _navy.withOpacity(0.2),
+            color: _navy.withValues(alpha: 0.2),
             blurRadius: 40,
             offset: const Offset(0, 12),
           ),
@@ -54,12 +54,12 @@ class FeaturedProductCard extends StatelessWidget {
             Positioned(
               right: -20,
               top: -20,
-              child: _Blob(size: 120, color: _purple.withOpacity(0.2)),
+              child: _Blob(size: 120, color: _purple.withValues(alpha: 0.2)),
             ),
             Positioned(
               right: 40,
               bottom: -10,
-              child: _Blob(size: 80, color: _yellow.withOpacity(0.08)),
+              child: _Blob(size: 80, color: _yellow.withValues(alpha: 0.08)),
             ),
 
             Padding(
@@ -144,7 +144,7 @@ class FeaturedProductCard extends StatelessWidget {
           '${product.formattedStudents} siswa',
           style: GoogleFonts.manrope(
             fontSize: 11,
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
           ),
         ),
         if (product.duration.isNotEmpty)
@@ -152,7 +152,7 @@ class FeaturedProductCard extends StatelessWidget {
             product.duration,
             style: GoogleFonts.manrope(
               fontSize: 11,
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withValues(alpha: 0.6),
             ),
           ),
       ],
@@ -173,7 +173,7 @@ class FeaturedProductCard extends StatelessWidget {
                   product.formattedOriginalPrice!,
                   style: GoogleFonts.manrope(
                     fontSize: 11,
-                    color: Colors.white.withOpacity(0.45),
+                    color: Colors.white.withValues(alpha: 0.45),
                     decoration: TextDecoration.lineThrough,
                   ),
                 ),

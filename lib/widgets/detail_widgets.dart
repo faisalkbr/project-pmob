@@ -32,7 +32,7 @@ class DetailBackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withOpacity(0.28),
+      color: Colors.black.withValues(alpha: 0.28),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -62,9 +62,9 @@ class DetailWishlistButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final aColor = activeColor ?? DetailColors.purple.withOpacity(0.5);
+    final aColor = activeColor ?? DetailColors.purple.withValues(alpha: 0.5);
     return Material(
-      color: active ? aColor : Colors.black.withOpacity(0.28),
+      color: active ? aColor : Colors.black.withValues(alpha: 0.28),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -269,7 +269,7 @@ class StatsRow extends StatelessWidget {
         border: Border.all(color: DetailColors.border),
         boxShadow: [
           BoxShadow(
-            color: DetailColors.navy.withOpacity(0.05),
+            color: DetailColors.navy.withValues(alpha: 0.05),
             blurRadius: 16,
             offset: const Offset(0, 2),
           ),
@@ -836,7 +836,7 @@ class ReviewCard extends StatelessWidget {
               date!,
               style: GoogleFonts.manrope(
                 fontSize: 10,
-                color: DetailColors.muted.withOpacity(0.7),
+                color: DetailColors.muted.withValues(alpha: 0.7),
               ),
             ),
           ],
